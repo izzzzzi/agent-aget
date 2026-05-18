@@ -45,6 +45,9 @@ func requireExecutable(path string) (string, error) {
 	if info.IsDir() {
 		return "", fmt.Errorf("%s is a directory", path)
 	}
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0111 == 0 {
+		return "", fmt.Errorf("%s is not executable", path)
+	}
 	return path, nil
 }
 

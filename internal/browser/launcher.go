@@ -22,6 +22,7 @@ type Process struct {
 }
 
 func FindFreePort() (int, error) {
+	// The returned port can be claimed before the browser starts; callers must handle launch and readiness errors.
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return 0, err
@@ -41,6 +42,7 @@ func Launch(options LaunchOptions) (*Process, error) {
 	}
 
 	cmd := exec.Command(options.BinaryPath, buildArgs(options)...)
+	configureCommand(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
@@ -56,7 +58,7 @@ func (p *Process) Stop() error {
 	if p == nil || p.cmd == nil || p.cmd.Process == nil {
 		return nil
 	}
-	killErr := p.cmd.Process.Kill()
+	killErr := stopCommand(p.cmd)
 	_ = p.cmd.Wait()
 	return killErr
 }
