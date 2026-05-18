@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/chromedp/chromedp"
 )
@@ -86,15 +87,42 @@ func (d *ChromeDPDriver) callContext(ctx context.Context) (context.Context, cont
 		return nil, nil, err
 	}
 
-	runCtx, cancel := context.WithCancel(d.ctx)
+	runCtx, cancel := contextWithEarliestDeadline(d.ctx, ctx)
 	go func() {
 		select {
 		case <-ctx.Done():
+			if ctx.Err() == context.DeadlineExceeded {
+				return
+			}
 			cancel()
 		case <-runCtx.Done():
 		}
 	}()
 	return runCtx, cancel, nil
+}
+
+func contextWithEarliestDeadline(parent, call context.Context) (context.Context, context.CancelFunc) {
+	deadline, ok := earliestDeadline(parent, call)
+	if ok {
+		return context.WithDeadline(parent, deadline)
+	}
+	return context.WithCancel(parent)
+}
+
+func earliestDeadline(contexts ...context.Context) (time.Time, bool) {
+	var earliest time.Time
+	found := false
+	for _, ctx := range contexts {
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			continue
+		}
+		if !found || deadline.Before(earliest) {
+			earliest = deadline
+			found = true
+		}
+	}
+	return earliest, found
 }
 
 func writeScreenshot(path string, body []byte) error {

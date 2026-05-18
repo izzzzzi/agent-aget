@@ -72,6 +72,55 @@ func TestRunActionsCancelsWhenCallContextIsCanceled(t *testing.T) {
 	}
 }
 
+func TestCallContextPreservesCallDeadline(t *testing.T) {
+	callDeadline := time.Now().Add(50 * time.Millisecond)
+	callCtx, cancelCall := context.WithDeadline(context.Background(), callDeadline)
+	defer cancelCall()
+	driver := &ChromeDPDriver{ctx: context.Background()}
+
+	runCtx, cancelRun, err := driver.callContext(callCtx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cancelRun()
+
+	gotDeadline, ok := runCtx.Deadline()
+	if !ok {
+		t.Fatal("run context has no deadline")
+	}
+	if !gotDeadline.Equal(callDeadline) {
+		t.Fatalf("deadline = %v, want %v", gotDeadline, callDeadline)
+	}
+
+	<-runCtx.Done()
+	if !errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+		t.Fatalf("run context error = %v, want context.DeadlineExceeded", runCtx.Err())
+	}
+}
+
+func TestCallContextUsesEarliestDeadline(t *testing.T) {
+	driverCtx, cancelDriver := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
+	defer cancelDriver()
+	callDeadline := time.Now().Add(100 * time.Millisecond)
+	callCtx, cancelCall := context.WithDeadline(context.Background(), callDeadline)
+	defer cancelCall()
+	driver := &ChromeDPDriver{ctx: driverCtx}
+
+	runCtx, cancelRun, err := driver.callContext(callCtx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cancelRun()
+
+	gotDeadline, ok := runCtx.Deadline()
+	if !ok {
+		t.Fatal("run context has no deadline")
+	}
+	if !gotDeadline.Equal(callDeadline) {
+		t.Fatalf("deadline = %v, want earliest %v", gotDeadline, callDeadline)
+	}
+}
+
 func TestWriteScreenshotOverwritesWithPrivateMode(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "screenshot.png")
 	if err := os.WriteFile(path, []byte("old"), 0o666); err != nil {
