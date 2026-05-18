@@ -42,3 +42,21 @@ func TestMarshalErrorShape(t *testing.T) {
 		t.Fatalf("details.sid = %v", details["sid"])
 	}
 }
+
+func TestMarshalErrorIncludesEmptyMessage(t *testing.T) {
+	body, err := MarshalError("invalid_args", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatal(err)
+	}
+	message, ok := got["message"]
+	if !ok {
+		t.Fatalf("message missing from %s", body)
+	}
+	if message != "" {
+		t.Fatalf("message = %v, want empty string", message)
+	}
+}

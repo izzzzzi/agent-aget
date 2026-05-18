@@ -7,7 +7,7 @@ type OK map[string]any
 type Error struct {
 	OK      bool           `json:"ok"`
 	Code    string         `json:"code"`
-	Message string         `json:"message,omitempty"`
+	Message string         `json:"message"`
 	Details map[string]any `json:"details,omitempty"`
 }
 
