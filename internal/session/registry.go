@@ -9,7 +9,10 @@ import (
 	"time"
 )
 
-var ErrNotFound = errors.New("session not found")
+var (
+	ErrNotFound   = errors.New("session not found")
+	ErrInvalidSID = errors.New("invalid session id")
+)
 
 type Record struct {
 	SID        string    `json:"sid"`
@@ -32,7 +35,14 @@ func NewRegistry(dir string) *Registry {
 }
 
 func (r *Registry) Save(record Record) error {
+	if err := validateSID(record.SID); err != nil {
+		return err
+	}
+
 	if err := os.MkdirAll(r.dir, 0o700); err != nil {
+		return err
+	}
+	if err := os.Chmod(r.dir, 0o700); err != nil {
 		return err
 	}
 
@@ -42,10 +52,18 @@ func (r *Registry) Save(record Record) error {
 	}
 	data = append(data, '\n')
 
-	return os.WriteFile(r.path(record.SID), data, 0o600)
+	path := r.path(record.SID)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
 }
 
 func (r *Registry) Get(sid string) (Record, error) {
+	if err := validateSID(sid); err != nil {
+		return Record{}, err
+	}
+
 	data, err := os.ReadFile(r.path(sid))
 	if errors.Is(err, os.ErrNotExist) {
 		return Record{}, ErrNotFound
@@ -96,6 +114,10 @@ func (r *Registry) List() ([]Record, error) {
 }
 
 func (r *Registry) Delete(sid string) error {
+	if err := validateSID(sid); err != nil {
+		return err
+	}
+
 	if err := os.Remove(r.path(sid)); errors.Is(err, os.ErrNotExist) {
 		return ErrNotFound
 	} else if err != nil {
@@ -106,4 +128,11 @@ func (r *Registry) Delete(sid string) error {
 
 func (r *Registry) path(sid string) string {
 	return filepath.Join(r.dir, sid+".json")
+}
+
+func validateSID(sid string) error {
+	if sid == "" || sid != filepath.Base(sid) {
+		return ErrInvalidSID
+	}
+	return nil
 }

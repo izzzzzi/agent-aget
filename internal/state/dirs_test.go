@@ -15,15 +15,16 @@ func TestBaseDirUsesOverride(t *testing.T) {
 }
 
 func TestDerivedDirs(t *testing.T) {
-	t.Setenv("AGET_STATE_DIR", "/tmp/aget-test")
+	base := filepath.Join("tmp", "aget-test")
+	t.Setenv("AGET_STATE_DIR", base)
 
-	if got, want := SessionsDir(), "/tmp/aget-test/sessions"; got != want {
+	if got, want := SessionsDir(), filepath.Join(base, "sessions"); got != want {
 		t.Fatalf("SessionsDir() = %q, want %q", got, want)
 	}
-	if got, want := ArtifactsDir(), "/tmp/aget-test/artifacts"; got != want {
+	if got, want := ArtifactsDir(), filepath.Join(base, "artifacts"); got != want {
 		t.Fatalf("ArtifactsDir() = %q, want %q", got, want)
 	}
-	if got, want := ProfilesDir(), "/tmp/aget-test/profiles"; got != want {
+	if got, want := ProfilesDir(), filepath.Join(base, "profiles"); got != want {
 		t.Fatalf("ProfilesDir() = %q, want %q", got, want)
 	}
 }
