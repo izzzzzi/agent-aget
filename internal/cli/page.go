@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/izzzzzi/agent-aget/internal/cdp"
 	"github.com/izzzzzi/agent-aget/internal/page"
@@ -17,6 +18,8 @@ import (
 var newChromeDPDriver = func(parent context.Context, debugURL string) (cdp.Driver, error) {
 	return cdp.NewChromeDPDriver(parent, debugURL)
 }
+
+var pageCommandTimeout = 30 * time.Second
 
 func newPageCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -44,13 +47,16 @@ func newPageReadCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			driver, err := newChromeDPDriver(context.Background(), record.DebugURL)
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			driver, err := newChromeDPDriver(ctx, record.DebugURL)
 			if err != nil {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
 			defer driver.Close(context.Background())
 
-			result, err := page.NewService(driver).Read(context.Background(), page.ReadOptions{Limit: limit})
+			result, err := page.NewService(driver).Read(ctx, page.ReadOptions{Limit: limit})
 			if err != nil {
 				return writeError(cmd, "page_read_failed", err.Error(), map[string]any{"sid": sid})
 			}
@@ -88,7 +94,10 @@ func newPageActionCommand(name string, needsText bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			driver, err := newChromeDPDriver(context.Background(), record.DebugURL)
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			driver, err := newChromeDPDriver(ctx, record.DebugURL)
 			if err != nil {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
@@ -96,10 +105,10 @@ func newPageActionCommand(name string, needsText bool) *cobra.Command {
 
 			svc := page.NewService(driver)
 			if needsText {
-				if err := svc.Type(context.Background(), selector, text); err != nil {
+				if err := svc.Type(ctx, selector, text); err != nil {
 					return writeError(cmd, "page_action_failed", err.Error(), map[string]any{"sid": sid, "selector": selector})
 				}
-			} else if err := svc.Click(context.Background(), selector); err != nil {
+			} else if err := svc.Click(ctx, selector); err != nil {
 				return writeError(cmd, "page_action_failed", err.Error(), map[string]any{"sid": sid, "selector": selector})
 			}
 
@@ -131,7 +140,10 @@ func newPageScreenshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			driver, err := newChromeDPDriver(context.Background(), record.DebugURL)
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			driver, err := newChromeDPDriver(ctx, record.DebugURL)
 			if err != nil {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
@@ -143,7 +155,7 @@ func newPageScreenshotCommand() *cobra.Command {
 			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 				return writeError(cmd, "page_screenshot_failed", err.Error(), map[string]any{"sid": sid})
 			}
-			if err := page.NewService(driver).Screenshot(context.Background(), path); err != nil {
+			if err := page.NewService(driver).Screenshot(ctx, path); err != nil {
 				return writeError(cmd, "page_screenshot_failed", err.Error(), map[string]any{"sid": sid, "path": path})
 			}
 			return writeJSON(cmd, map[string]any{"ok": true, "sid": sid, "path": path})
@@ -153,6 +165,10 @@ func newPageScreenshotCommand() *cobra.Command {
 	cmd.Flags().StringVar(&path, "path", "", "artifact path")
 	disableHelpFlag(cmd)
 	return cmd
+}
+
+func pageOperationContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), pageCommandTimeout)
 }
 
 func lookupSession(cmd *cobra.Command, sid string) (sessionstore.Record, error) {

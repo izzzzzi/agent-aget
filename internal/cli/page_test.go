@@ -109,6 +109,28 @@ func TestPageTypeCallsDriver(t *testing.T) {
 	}
 }
 
+func TestPageReadUsesCommandTimeout(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &blockingDriver{}
+	restoreDriver := replaceChromeDPDriverForTest(t, driver)
+	defer restoreDriver()
+	restoreTimeout := replacePageCommandTimeoutForTest(20 * time.Millisecond)
+	defer restoreTimeout()
+
+	stdout, stderr, err := executeForTest("page", "read", "-s", "abc12345")
+	if err == nil {
+		t.Fatal("expected timeout error")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	assertErrorCodeJSON(t, stderr, "page_read_failed")
+	if !driver.readCanceled {
+		t.Fatal("driver read did not observe context cancellation")
+	}
+}
+
 func saveTestSession(t *testing.T, sid, debugURL string) {
 	t.Helper()
 	now := time.Now().UTC()
@@ -126,15 +148,25 @@ func saveTestSession(t *testing.T, sid, debugURL string) {
 	}
 }
 
-func replaceChromeDPDriverForTest(t *testing.T, driver *recordingDriver) func() {
+func replaceChromeDPDriverForTest(t *testing.T, driver cdp.Driver) func() {
 	t.Helper()
 	old := newChromeDPDriver
 	newChromeDPDriver = func(ctx context.Context, debugURL string) (cdp.Driver, error) {
-		driver.debugURL = debugURL
+		if recorder, ok := driver.(*recordingDriver); ok {
+			recorder.debugURL = debugURL
+		}
 		return driver, nil
 	}
 	return func() {
 		newChromeDPDriver = old
+	}
+}
+
+func replacePageCommandTimeoutForTest(timeout time.Duration) func() {
+	old := pageCommandTimeout
+	pageCommandTimeout = timeout
+	return func() {
+		pageCommandTimeout = old
 	}
 }
 
@@ -165,5 +197,31 @@ func (d *recordingDriver) Screenshot(context.Context, string) error {
 }
 
 func (d *recordingDriver) Close(context.Context) error {
+	return nil
+}
+
+type blockingDriver struct {
+	readCanceled bool
+}
+
+func (d *blockingDriver) Read(ctx context.Context) (cdp.PageState, error) {
+	<-ctx.Done()
+	d.readCanceled = true
+	return cdp.PageState{}, ctx.Err()
+}
+
+func (d *blockingDriver) Click(context.Context, string) error {
+	return errors.New("unexpected click")
+}
+
+func (d *blockingDriver) Type(context.Context, string, string) error {
+	return errors.New("unexpected type")
+}
+
+func (d *blockingDriver) Screenshot(context.Context, string) error {
+	return errors.New("unexpected screenshot")
+}
+
+func (d *blockingDriver) Close(context.Context) error {
 	return nil
 }
