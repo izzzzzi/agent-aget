@@ -3,6 +3,8 @@ package cdp
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -148,5 +150,52 @@ func TestWriteScreenshotOverwritesWithPrivateMode(t *testing.T) {
 	}
 	if got := info.Mode().Perm(); got != 0o600 {
 		t.Fatalf("mode = %v, want 0600", got)
+	}
+}
+
+func TestFetchFirstPageTargetID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/json/list" {
+			t.Fatalf("path = %q, want /json/list", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[
+			{"id":"browser","type":"browser","url":""},
+			{"id":"page-one","type":"page","url":"https://habr.com/ru/articles/776402/"},
+			{"id":"page-two","type":"page","url":"about:blank"}
+		]`))
+	}))
+	defer server.Close()
+
+	id, err := fetchFirstPageTargetID(context.Background(), server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id.String() != "page-one" {
+		t.Fatalf("id = %q, want page-one", id)
+	}
+}
+
+func TestNewChromeDPDriverSurvivesParentCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/json/list" {
+			t.Fatalf("path = %q, want /json/list", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id":"page-one","type":"page","url":"https://example.com"}]`))
+	}))
+	defer server.Close()
+
+	parent, cancel := context.WithCancel(context.Background())
+	driver, err := NewChromeDPDriver(parent, server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer driver.Close(context.Background())
+
+	cancel()
+
+	if err := driver.ctx.Err(); err != nil {
+		t.Fatalf("driver context was canceled with parent: %v", err)
 	}
 }

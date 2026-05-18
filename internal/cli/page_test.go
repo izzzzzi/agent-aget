@@ -75,6 +75,9 @@ func TestPageClickCallsDriver(t *testing.T) {
 	if driver.clicked != "button.submit" {
 		t.Fatalf("clicked = %q", driver.clicked)
 	}
+	if driver.closed {
+		t.Fatal("driver was closed; page commands must preserve the browser target for later session commands")
+	}
 
 	var got map[string]any
 	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
@@ -175,6 +178,7 @@ type recordingDriver struct {
 	clicked       string
 	typedSelector string
 	typedText     string
+	closed        bool
 }
 
 func (d *recordingDriver) Read(context.Context) (cdp.PageState, error) {
@@ -197,6 +201,7 @@ func (d *recordingDriver) Screenshot(context.Context, string) error {
 }
 
 func (d *recordingDriver) Close(context.Context) error {
+	d.closed = true
 	return nil
 }
 

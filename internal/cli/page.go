@@ -54,7 +54,6 @@ func newPageReadCommand() *cobra.Command {
 			if err != nil {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
-			defer driver.Close(context.Background())
 
 			result, err := page.NewService(driver).Read(ctx, page.ReadOptions{Limit: limit})
 			if err != nil {
@@ -101,7 +100,6 @@ func newPageActionCommand(name string, needsText bool) *cobra.Command {
 			if err != nil {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
-			defer driver.Close(context.Background())
 
 			svc := page.NewService(driver)
 			if needsText {
@@ -147,7 +145,6 @@ func newPageScreenshotCommand() *cobra.Command {
 			if err != nil {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
-			defer driver.Close(context.Background())
 
 			if path == "" {
 				path = filepath.Join(state.ArtifactsDir(), sid+".png")

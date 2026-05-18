@@ -2,10 +2,15 @@ package cdp
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 )
 
@@ -18,8 +23,16 @@ type ChromeDPDriver struct {
 }
 
 func NewChromeDPDriver(parent context.Context, debugURL string) (*ChromeDPDriver, error) {
-	allocatorCtx, allocatorCancel := chromedp.NewRemoteAllocator(parent, debugURL)
-	ctx, cancel := chromedp.NewContext(allocatorCtx)
+	if parent == nil {
+		parent = context.Background()
+	}
+	targetID, err := fetchFirstPageTargetID(parent, debugURL)
+	if err != nil {
+		return nil, err
+	}
+
+	allocatorCtx, allocatorCancel := chromedp.NewRemoteAllocator(context.Background(), debugURL)
+	ctx, cancel := chromedp.NewContext(allocatorCtx, chromedp.WithTargetID(targetID))
 	return &ChromeDPDriver{
 		ctx: ctx,
 		cancel: func() {
@@ -28,6 +41,43 @@ func NewChromeDPDriver(parent context.Context, debugURL string) (*ChromeDPDriver
 		},
 		run: chromedp.Run,
 	}, nil
+}
+
+type pageTarget struct {
+	ID   string `json:"id"`
+	Type string `json:"type"`
+	URL  string `json:"url"`
+}
+
+func fetchFirstPageTargetID(ctx context.Context, debugURL string) (target.ID, error) {
+	url := strings.TrimRight(debugURL, "/") + "/json/list"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("devtools target list returned %s", resp.Status)
+	}
+	var targets []pageTarget
+	if err := json.NewDecoder(resp.Body).Decode(&targets); err != nil {
+		return "", err
+	}
+	for _, candidate := range targets {
+		if candidate.Type == "page" && candidate.ID != "" && candidate.URL != "about:blank" {
+			return target.ID(candidate.ID), nil
+		}
+	}
+	for _, candidate := range targets {
+		if candidate.Type == "page" && candidate.ID != "" {
+			return target.ID(candidate.ID), nil
+		}
+	}
+	return "", fmt.Errorf("no page target found at %s", url)
 }
 
 func (d *ChromeDPDriver) Read(ctx context.Context) (PageState, error) {

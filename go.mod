@@ -3,12 +3,12 @@ module github.com/izzzzzi/agent-aget
 go 1.22
 
 require (
+	github.com/chromedp/cdproto v0.0.0-20241003230502-a4a8f7c660df
 	github.com/chromedp/chromedp v0.10.1
 	github.com/spf13/cobra v1.8.1
 )
 
 require (
-	github.com/chromedp/cdproto v0.0.0-20241003230502-a4a8f7c660df // indirect
 	github.com/chromedp/sysutil v1.0.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
