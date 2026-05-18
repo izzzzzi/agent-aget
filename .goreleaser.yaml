@@ -1,0 +1,60 @@
+version: 2
+
+project_name: aget
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: aget
+    main: ./cmd/aget
+    binary: aget
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/izzzzzi/agent-aget/internal/cli.version={{.Version}}
+      - -X github.com/izzzzzi/agent-aget/internal/cli.commit={{.Commit}}
+      - -X github.com/izzzzzi/agent-aget/internal/cli.date={{.Date}}
+
+archives:
+  - id: default
+    ids:
+      - aget
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    format_overrides:
+      - goos: windows
+        formats: ["zip"]
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  github:
+    owner: izzzzzi
+    name: agent-aget
+
+snapshot:
+  version_template: "{{ .Version }}"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"

@@ -1,0 +1,38 @@
+{
+  "name": "agent-aget",
+  "version": "0.1.0",
+  "description": "Browser workflow helper for LLM agents",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/izzzzzi/agent-aget.git"
+  },
+  "keywords": [
+    "browser",
+    "llm",
+    "agent",
+    "cli",
+    "cdp"
+  ],
+  "bin": {
+    "aget": "bin/aget.js"
+  },
+  "scripts": {
+    "test": "node scripts/smoke-test.js",
+    "postinstall": "node scripts/install.js",
+    "check": "test -z \"$(gofmt -l .)\" && go vet ./... && go test ./... && npm run smoke && npm pack --dry-run",
+    "smoke": "node scripts/smoke-test.js",
+    "release:contract": "node scripts/release-contract-test.js",
+    "pack:dry": "npm pack --dry-run"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin/aget.js",
+    "scripts",
+    "README.md",
+    "README.en.md",
+    "LICENSE"
+  ]
+}
