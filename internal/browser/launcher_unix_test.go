@@ -81,7 +81,12 @@ func readChildPID(t *testing.T, path, logPath string) int {
 	for time.Now().Before(deadline) {
 		body, err := os.ReadFile(path)
 		if err == nil {
-			pid, err := strconv.Atoi(strings.TrimSpace(string(body)))
+			pidText := strings.TrimSpace(string(body))
+			if pidText == "" {
+				time.Sleep(20 * time.Millisecond)
+				continue
+			}
+			pid, err := strconv.Atoi(pidText)
 			if err != nil {
 				t.Fatal(err)
 			}
