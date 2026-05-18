@@ -12,11 +12,19 @@ const browserNotFoundMessage = "CloakBrowser-compatible binary not found; set --
 
 func ResolveBinary(explicit string) (string, error) {
 	if explicit != "" {
-		return requireExecutable(explicit)
+		path, err := requireExecutable(explicit)
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", browserNotFoundMessage, err)
+		}
+		return path, nil
 	}
 
 	if env := os.Getenv("AGET_BROWSER_PATH"); env != "" {
-		return requireExecutable(env)
+		path, err := requireExecutable(env)
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", browserNotFoundMessage, err)
+		}
+		return path, nil
 	}
 
 	for _, name := range candidateNames() {
