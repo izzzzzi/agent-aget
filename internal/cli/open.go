@@ -70,12 +70,16 @@ func newOpenCommand() *cobra.Command {
 			return writeJSON(cmd, map[string]any{
 				"ok":      true,
 				"sid":     sid,
-				"session": record,
+				"session": name,
 				"browser": map[string]any{"path": binary, "pid": process.PID, "debug_url": process.DebugURL, "headless": !headful},
 				"page":    map[string]any{"url": url},
-				"next_commands": []string{
-					"aget page read -s " + sid,
-					"aget session close -s " + sid,
+				"record":  record,
+				"next_commands": map[string]string{
+					"read":       "aget page read -s " + sid,
+					"click":      "aget page click -s " + sid + " --selector CSS",
+					"type":       "aget page type -s " + sid + " --selector CSS --text TEXT",
+					"screenshot": "aget page screenshot -s " + sid,
+					"close":      "aget session close -s " + sid,
 				},
 			})
 		},

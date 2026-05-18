@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +14,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var newChromeDPDriver = cdp.NewChromeDPDriver
+var newChromeDPDriver = func(parent context.Context, debugURL string) (cdp.Driver, error) {
+	return cdp.NewChromeDPDriver(parent, debugURL)
+}
 
 func newPageCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -85,7 +88,20 @@ func newPageActionCommand(name string, needsText bool) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_ = record
+			driver, err := newChromeDPDriver(context.Background(), record.DebugURL)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			defer driver.Close(context.Background())
+
+			svc := page.NewService(driver)
+			if needsText {
+				if err := svc.Type(context.Background(), selector, text); err != nil {
+					return writeError(cmd, "page_action_failed", err.Error(), map[string]any{"sid": sid, "selector": selector})
+				}
+			} else if err := svc.Click(context.Background(), selector); err != nil {
+				return writeError(cmd, "page_action_failed", err.Error(), map[string]any{"sid": sid, "selector": selector})
+			}
 
 			payload := map[string]any{"ok": true, "sid": sid, "selector": selector}
 			if needsText {
@@ -145,7 +161,7 @@ func lookupSession(cmd *cobra.Command, sid string) (sessionstore.Record, error) 
 	}
 	record, err := sessionstore.NewRegistry(state.SessionsDir()).Get(sid)
 	if err != nil {
-		if err == sessionstore.ErrNotFound {
+		if errors.Is(err, sessionstore.ErrNotFound) {
 			return sessionstore.Record{}, writeError(cmd, "session_not_found", "session not found", map[string]any{"sid": sid})
 		}
 		return sessionstore.Record{}, writeError(cmd, "session_lookup_failed", err.Error(), map[string]any{"sid": sid})
