@@ -28,9 +28,7 @@ func NewRootCommand() *cobra.Command {
 	}
 	cmd.PersistentFlags().Bool("json", true, "emit JSON output")
 	_ = cmd.PersistentFlags().MarkHidden("json")
-	cmd.Flags().VarP(noHelpFlag{}, "help", "h", "help for aget")
-	cmd.Flags().Lookup("help").NoOptDefVal = "true"
-	_ = cmd.Flags().MarkHidden("help")
+	disableHelpFlag(cmd)
 	cmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return writeInvalidArgs(cmd, err.Error())
 	})
@@ -73,6 +71,12 @@ func writeError(cmd *cobra.Command, code, message string, details map[string]any
 	return errors.New(message)
 }
 
+func disableHelpFlag(cmd *cobra.Command) {
+	cmd.Flags().VarP(noHelpFlag{}, "help", "h", "help for "+cmd.Name())
+	cmd.Flags().Lookup("help").NoOptDefVal = "true"
+	_ = cmd.Flags().MarkHidden("help")
+}
+
 type noHelpFlag struct{}
 
 func (noHelpFlag) IsBoolFlag() bool {
@@ -80,7 +84,7 @@ func (noHelpFlag) IsBoolFlag() bool {
 }
 
 func (noHelpFlag) Set(string) error {
-	return nil
+	return errors.New("help is not available for this command")
 }
 
 func (noHelpFlag) String() string {

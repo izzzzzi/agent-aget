@@ -9,7 +9,7 @@ var (
 )
 
 func newVersionCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print version metadata",
 		Args:  noPositionalArgs,
@@ -22,4 +22,6 @@ func newVersionCommand() *cobra.Command {
 			})
 		},
 	}
+	disableHelpFlag(cmd)
+	return cmd
 }

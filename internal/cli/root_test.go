@@ -61,6 +61,17 @@ func TestVersionCommand(t *testing.T) {
 	}
 }
 
+func TestVersionHelpReturnsJSONError(t *testing.T) {
+	stdout, stderr, err := executeForTest("version", "--help")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	assertInvalidArgsJSON(t, stderr)
+}
+
 func TestUnknownCommandWithHelpReturnsJSONError(t *testing.T) {
 	stdout, stderr, err := executeForTest("unknown", "--help")
 	if err == nil {
