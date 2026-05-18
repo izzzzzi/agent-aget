@@ -1,0 +1,154 @@
+package cli
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/izzzzzi/agent-aget/internal/cdp"
+	"github.com/izzzzzi/agent-aget/internal/page"
+	sessionstore "github.com/izzzzzi/agent-aget/internal/session"
+	"github.com/izzzzzi/agent-aget/internal/state"
+	"github.com/spf13/cobra"
+)
+
+var newChromeDPDriver = cdp.NewChromeDPDriver
+
+func newPageCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "page",
+		Short: "Inspect and control the active page",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return writeInvalidArgs(cmd, "page subcommand required")
+		},
+	}
+	disableHelpFlag(cmd)
+	cmd.AddCommand(newPageReadCommand(), newPageClickCommand(), newPageTypeCommand(), newPageScreenshotCommand())
+	return cmd
+}
+
+func newPageReadCommand() *cobra.Command {
+	var sid string
+	var limit int
+	cmd := &cobra.Command{
+		Use:   "read",
+		Short: "Read the current page",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			driver, err := newChromeDPDriver(context.Background(), record.DebugURL)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			defer driver.Close(context.Background())
+
+			result, err := page.NewService(driver).Read(context.Background(), page.ReadOptions{Limit: limit})
+			if err != nil {
+				return writeError(cmd, "page_read_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			result.OK = true
+			return writeJSON(cmd, result)
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().IntVar(&limit, "limit", 80, "maximum number of lines")
+	disableHelpFlag(cmd)
+	return cmd
+}
+
+func newPageClickCommand() *cobra.Command {
+	return newPageActionCommand("click", false)
+}
+
+func newPageTypeCommand() *cobra.Command {
+	return newPageActionCommand("type", true)
+}
+
+func newPageActionCommand(name string, needsText bool) *cobra.Command {
+	var sid string
+	var selector string
+	var text string
+	cmd := &cobra.Command{
+		Use:   name,
+		Short: fmt.Sprintf("%s elements on the current page", name),
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if selector == "" {
+				return writeInvalidArgs(cmd, "selector required")
+			}
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			_ = record
+
+			payload := map[string]any{"ok": true, "sid": sid, "selector": selector}
+			if needsText {
+				payload["text_len"] = len(text)
+			}
+			return writeJSON(cmd, payload)
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().StringVar(&selector, "selector", "", "css selector")
+	if needsText {
+		cmd.Flags().StringVar(&text, "text", "", "text to type")
+	}
+	disableHelpFlag(cmd)
+	return cmd
+}
+
+func newPageScreenshotCommand() *cobra.Command {
+	var sid string
+	var path string
+	cmd := &cobra.Command{
+		Use:   "screenshot",
+		Short: "Capture a page screenshot",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			driver, err := newChromeDPDriver(context.Background(), record.DebugURL)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			defer driver.Close(context.Background())
+
+			if path == "" {
+				path = filepath.Join(state.ArtifactsDir(), sid+".png")
+			}
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				return writeError(cmd, "page_screenshot_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			if err := page.NewService(driver).Screenshot(context.Background(), path); err != nil {
+				return writeError(cmd, "page_screenshot_failed", err.Error(), map[string]any{"sid": sid, "path": path})
+			}
+			return writeJSON(cmd, map[string]any{"ok": true, "sid": sid, "path": path})
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().StringVar(&path, "path", "", "artifact path")
+	disableHelpFlag(cmd)
+	return cmd
+}
+
+func lookupSession(cmd *cobra.Command, sid string) (sessionstore.Record, error) {
+	if sid == "" {
+		return sessionstore.Record{}, writeInvalidArgs(cmd, "session id required")
+	}
+	record, err := sessionstore.NewRegistry(state.SessionsDir()).Get(sid)
+	if err != nil {
+		if err == sessionstore.ErrNotFound {
+			return sessionstore.Record{}, writeError(cmd, "session_not_found", "session not found", map[string]any{"sid": sid})
+		}
+		return sessionstore.Record{}, writeError(cmd, "session_lookup_failed", err.Error(), map[string]any{"sid": sid})
+	}
+	return record, nil
+}

@@ -114,6 +114,11 @@ func TestWriteErrorPropagatesWriteError(t *testing.T) {
 
 func assertInvalidArgsJSON(t *testing.T, body string) {
 	t.Helper()
+	assertErrorCodeJSON(t, body, "invalid_args")
+}
+
+func assertErrorCodeJSON(t *testing.T, body string, want string) {
+	t.Helper()
 	var got map[string]any
 	if err := json.Unmarshal([]byte(body), &got); err != nil {
 		if errors.Is(err, io.EOF) {
@@ -121,7 +126,7 @@ func assertInvalidArgsJSON(t *testing.T, body string) {
 		}
 		t.Fatalf("stderr is not json: %q", body)
 	}
-	if got["code"] != "invalid_args" {
+	if got["code"] != want {
 		t.Fatalf("code = %v", got["code"])
 	}
 }
