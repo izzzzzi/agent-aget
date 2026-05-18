@@ -13,6 +13,9 @@ func NewRootCommand() *cobra.Command {
 		Short:         "Browser workflow helper for LLM agents",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		CompletionOptions: cobra.CompletionOptions{
+			DisableDefaultCmd: true,
+		},
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return writeInvalidArgs(cmd, "unknown command "+args[0])
@@ -25,6 +28,9 @@ func NewRootCommand() *cobra.Command {
 	}
 	cmd.PersistentFlags().Bool("json", true, "emit JSON output")
 	_ = cmd.PersistentFlags().MarkHidden("json")
+	cmd.Flags().VarP(noHelpFlag{}, "help", "h", "help for aget")
+	cmd.Flags().Lookup("help").NoOptDefVal = "true"
+	_ = cmd.Flags().MarkHidden("help")
 	cmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return writeInvalidArgs(cmd, err.Error())
 	})
@@ -52,8 +58,8 @@ func writeJSON(cmd *cobra.Command, v any) error {
 	if err != nil {
 		return err
 	}
-	_, _ = cmd.OutOrStdout().Write(body)
-	return nil
+	_, err = cmd.OutOrStdout().Write(body)
+	return err
 }
 
 func writeError(cmd *cobra.Command, code, message string, details map[string]any) error {
@@ -61,6 +67,26 @@ func writeError(cmd *cobra.Command, code, message string, details map[string]any
 	if marshalErr != nil {
 		return marshalErr
 	}
-	_, _ = cmd.ErrOrStderr().Write(body)
+	if _, writeErr := cmd.ErrOrStderr().Write(body); writeErr != nil {
+		return writeErr
+	}
 	return errors.New(message)
+}
+
+type noHelpFlag struct{}
+
+func (noHelpFlag) IsBoolFlag() bool {
+	return true
+}
+
+func (noHelpFlag) Set(string) error {
+	return nil
+}
+
+func (noHelpFlag) String() string {
+	return "false"
+}
+
+func (noHelpFlag) Type() string {
+	return "bool"
 }
