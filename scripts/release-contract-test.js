@@ -34,6 +34,27 @@ function verifyArtifactFiles(files, version = pkg.version) {
   }
 }
 
+function verifyPackageFiles() {
+  const files = run('npm', ['pack', '--dry-run', '--json']);
+  const parsed = JSON.parse(files);
+  const names = parsed[0].files.map((file) => file.path);
+
+  for (const required of ['browser-manifest.json', 'scripts/browser-install.js']) {
+    if (!names.includes(required)) {
+      throw new Error(`missing npm package file: ${required}`);
+    }
+  }
+
+  const rootManifest = fs.readFileSync(path.join(root, 'browser-manifest.json'), 'utf8');
+  const embeddedManifest = fs.readFileSync(
+    path.join(root, 'internal/managedbrowser/browser-manifest.json'),
+    'utf8',
+  );
+  if (rootManifest !== embeddedManifest) {
+    throw new Error('root and embedded browser manifests differ');
+  }
+}
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: root,
@@ -140,6 +161,7 @@ function main() {
   const cleanup = ensureReleaseGitState();
 
   try {
+    verifyPackageFiles();
     const [command, args] = goreleaserArgs();
     run(command, args, { stdio: 'inherit' });
     verifyArtifactFiles(artifactFiles());
@@ -161,4 +183,5 @@ if (require.main === module) {
 module.exports = {
   expectedArchives,
   verifyArtifactFiles,
+  verifyPackageFiles,
 };

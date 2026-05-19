@@ -9,6 +9,27 @@ npm i -g agent-aget
 aget version
 ```
 
+During `npm i -g agent-aget`, the package downloads the native `aget` binary and tries to install pinned Chrome for Testing into the user cache. If the network is unavailable, package installation continues; install the browser later with:
+
+```bash
+aget browser install
+aget browser status
+aget browser path
+```
+
+Browser resolution order:
+
+1. `--browser-path`
+2. `AGET_BROWSER_PATH`
+3. managed Chrome for Testing from cache
+4. system Chrome/Chromium
+
+To skip managed browser installation:
+
+```bash
+AGET_SKIP_BROWSER_DOWNLOAD=1 npm i -g agent-aget
+```
+
 For local development:
 
 ```bash
@@ -27,13 +48,6 @@ The browser runs headless by default. Use a visible window with:
 
 ```bash
 aget open https://example.com -n example --headful
-```
-
-If the browser is not resolved automatically, pass its path:
-
-```bash
-AGET_BROWSER_PATH=/Applications/Chromium.app/Contents/MacOS/Chromium aget open https://example.com
-aget open https://example.com --browser-path /path/to/chrome
 ```
 
 ## Page Commands

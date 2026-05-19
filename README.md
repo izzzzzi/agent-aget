@@ -9,6 +9,27 @@ npm i -g agent-aget
 aget version
 ```
 
+При `npm i -g agent-aget` пакет скачивает native `aget` и пытается установить pinned Chrome for Testing в пользовательский cache. Если сеть недоступна, установка пакета не падает; браузер можно поставить позже:
+
+```bash
+aget browser install
+aget browser status
+aget browser path
+```
+
+Порядок выбора браузера:
+
+1. `--browser-path`
+2. `AGET_BROWSER_PATH`
+3. managed Chrome for Testing из cache
+4. системный Chrome/Chromium
+
+Чтобы пропустить установку managed browser:
+
+```bash
+AGET_SKIP_BROWSER_DOWNLOAD=1 npm i -g agent-aget
+```
+
 Для локальной разработки:
 
 ```bash
@@ -27,13 +48,6 @@ aget open https://example.com -n example
 
 ```bash
 aget open https://example.com -n example --headful
-```
-
-Если браузер не найден автоматически, задайте путь:
-
-```bash
-AGET_BROWSER_PATH=/Applications/Chromium.app/Contents/MacOS/Chromium aget open https://example.com
-aget open https://example.com --browser-path /path/to/chrome
 ```
 
 ## Команды страницы
