@@ -220,6 +220,54 @@ func TestSafeZipPathRejectsTraversal(t *testing.T) {
 	}
 }
 
+func TestExtractZipPreservesSymlinks(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation requires elevated privileges on many windows systems")
+	}
+	archivePath := filepath.Join(t.TempDir(), "archive.zip")
+	file, err := os.Create(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer := zip.NewWriter(file)
+	header := &zip.FileHeader{Name: "chrome-mac-arm64/Google Chrome for Testing.app/Contents/Frameworks/Chrome Framework.framework/Resources"}
+	header.SetMode(os.ModeSymlink | 0o777)
+	entry, err := writer.CreateHeader(header)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := entry.Write([]byte("Versions/Current/Resources")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	destination := t.TempDir()
+	if err := extractZip(archivePath, destination); err != nil {
+		t.Fatal(err)
+	}
+
+	link := filepath.Join(destination, filepath.FromSlash(header.Name))
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("mode = %v, want symlink", info.Mode())
+	}
+	target, err := os.Readlink(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target != "Versions/Current/Resources" {
+		t.Fatalf("target = %q, want %q", target, "Versions/Current/Resources")
+	}
+}
+
 func makeZip(t *testing.T, name, body string) []byte {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "archive.zip")

@@ -198,7 +198,7 @@ func extractZip(archivePath, destination string) error {
 		if err != nil {
 			return err
 		}
-		if err := writeZipFile(target, source, file.Mode().Perm()); err != nil {
+		if err := writeZipFile(destination, target, source, file.FileInfo().Mode()); err != nil {
 			source.Close()
 			return err
 		}
@@ -209,8 +209,23 @@ func extractZip(archivePath, destination string) error {
 	return nil
 }
 
-func writeZipFile(path string, source io.Reader, mode os.FileMode) error {
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+func writeZipFile(destination, path string, source io.Reader, mode os.FileMode) error {
+	if mode&os.ModeSymlink != 0 {
+		targetBytes, err := io.ReadAll(source)
+		if err != nil {
+			return err
+		}
+		target := string(targetBytes)
+		if err := safeSymlinkTarget(destination, path, target); err != nil {
+			return err
+		}
+		if runtime.GOOS == "windows" {
+			return os.WriteFile(path, targetBytes, 0o644)
+		}
+		return os.Symlink(target, path)
+	}
+
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode.Perm())
 	if err != nil {
 		return err
 	}
@@ -227,4 +242,20 @@ func safeZipPath(destination, name string) (string, error) {
 		return "", fmt.Errorf("zip entry escapes destination: %s", name)
 	}
 	return target, nil
+}
+
+func safeSymlinkTarget(destination, linkPath, target string) error {
+	if target == "" {
+		return fmt.Errorf("zip symlink target is empty: %s", linkPath)
+	}
+	if filepath.IsAbs(target) || filepath.IsAbs(filepath.FromSlash(target)) {
+		return fmt.Errorf("zip symlink target is absolute: %s", target)
+	}
+	cleanDestination := filepath.Clean(destination)
+	resolved := filepath.Clean(filepath.Join(filepath.Dir(linkPath), filepath.FromSlash(target)))
+	prefix := cleanDestination + string(filepath.Separator)
+	if resolved != cleanDestination && !strings.HasPrefix(resolved, prefix) {
+		return fmt.Errorf("zip symlink target escapes destination: %s", target)
+	}
+	return nil
 }
