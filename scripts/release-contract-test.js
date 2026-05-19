@@ -39,7 +39,7 @@ function verifyPackageFiles() {
   const parsed = JSON.parse(files);
   const names = parsed[0].files.map((file) => file.path);
 
-  for (const required of ['browser-manifest.json', 'scripts/browser-install.js']) {
+  for (const required of ['browser-manifest.json', 'scripts/browser-install.js', 'AGENT_INSTRUCTIONS.md']) {
     if (!names.includes(required)) {
       throw new Error(`missing npm package file: ${required}`);
     }

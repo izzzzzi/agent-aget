@@ -94,6 +94,24 @@ aget session close -s SID
 
 Успешные ответы содержат `ok: true`. `aget open` возвращает `sid`, данные браузера, запись сессии и `next_commands` для дальнейших действий.
 
+## Справка для агентов
+
+`aget --help` возвращает JSON-карту команд для LLM-агента, а не обычный Cobra help:
+
+```bash
+aget --help
+aget page --help
+```
+
+Для полной короткой инструкции загрузите prompt:
+
+```bash
+aget prompt
+aget agent-instructions
+```
+
+Все эти команды сохраняют JSON-контракт CLI.
+
 ## Переменные окружения
 
 - `AGET_BROWSER_PATH` - путь к Chromium-совместимому браузеру.

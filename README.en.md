@@ -94,6 +94,24 @@ Operational commands print one JSON object to stdout. Errors are printed to stde
 
 Successful responses include `ok: true`. `aget open` returns `sid`, browser details, the session record, and `next_commands` for follow-up actions.
 
+## Agent Help
+
+`aget --help` returns a JSON command map for an LLM agent, not standard Cobra help:
+
+```bash
+aget --help
+aget page --help
+```
+
+For the full short instruction prompt, load:
+
+```bash
+aget prompt
+aget agent-instructions
+```
+
+These commands keep the CLI JSON contract.
+
 ## Environment
 
 - `AGET_BROWSER_PATH` - path to a Chromium-compatible browser.

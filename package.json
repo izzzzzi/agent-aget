@@ -35,6 +35,7 @@
     "browser-manifest.json",
     "README.md",
     "README.en.md",
+    "AGENT_INSTRUCTIONS.md",
     "LICENSE"
   ]
 }
