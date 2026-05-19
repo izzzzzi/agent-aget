@@ -35,13 +35,20 @@ func Install(ctx context.Context, manifest Manifest, platform string) (InstallRe
 	if status := Status(paths); status.Installed && status.Executable {
 		return InstallResult{OK: true, Version: manifest.Version, Platform: platform, Path: paths.Executable, CacheDir: paths.CacheRoot, AlreadyInstalled: true}, nil
 	}
+	archiveName, err := safeArchiveName(entry.Archive)
+	if err != nil {
+		return InstallResult{}, err
+	}
+	if err := os.MkdirAll(paths.CacheRoot, 0o700); err != nil {
+		return InstallResult{}, err
+	}
 	tmp, err := os.MkdirTemp(paths.CacheRoot, "agent-aget-browser-")
 	if err != nil {
 		return InstallResult{}, err
 	}
 	defer os.RemoveAll(tmp)
 
-	archivePath := filepath.Join(tmp, entry.Archive)
+	archivePath := filepath.Join(tmp, archiveName)
 	if err := download(ctx, entry.URL, archivePath); err != nil {
 		return InstallResult{}, fmt.Errorf("download browser archive: %w", err)
 	}
@@ -56,22 +63,73 @@ func Install(ctx context.Context, manifest Manifest, platform string) (InstallRe
 	if err := os.Rename(extractDir, staged); err != nil {
 		return InstallResult{}, err
 	}
-	if err := os.RemoveAll(paths.InstallDir); err != nil {
+	stagedExecutable, err := stagedExecutablePath(paths, staged)
+	if err != nil {
+		return InstallResult{}, err
+	}
+	if runtime.GOOS != "windows" {
+		_ = os.Chmod(stagedExecutable, 0o755)
+	}
+	if err := validateExecutable(stagedExecutable); err != nil {
 		return InstallResult{}, err
 	}
 	if err := os.MkdirAll(filepath.Dir(paths.InstallDir), 0o700); err != nil {
 		return InstallResult{}, err
 	}
+	backup := filepath.Join(tmp, "previous")
+	installed := false
+	if err := os.Rename(paths.InstallDir, backup); err != nil {
+		if !os.IsNotExist(err) {
+			return InstallResult{}, err
+		}
+	} else {
+		installed = true
+	}
 	if err := os.Rename(staged, paths.InstallDir); err != nil {
+		if installed {
+			_ = os.Rename(backup, paths.InstallDir)
+		}
 		return InstallResult{}, err
 	}
-	if runtime.GOOS != "windows" {
-		_ = os.Chmod(paths.Executable, 0o755)
-	}
 	if status := Status(paths); !status.Installed || !status.Executable {
+		_ = os.RemoveAll(paths.InstallDir)
+		if installed {
+			_ = os.Rename(backup, paths.InstallDir)
+		}
 		return InstallResult{}, fmt.Errorf("browser executable validation failed: %s", paths.Executable)
 	}
+	if installed {
+		if err := os.RemoveAll(backup); err != nil {
+			return InstallResult{}, err
+		}
+	}
 	return InstallResult{OK: true, Version: manifest.Version, Platform: platform, Path: paths.Executable, CacheDir: paths.CacheRoot}, nil
+}
+
+func safeArchiveName(name string) (string, error) {
+	if name == "" || name == "." || name == ".." || filepath.IsAbs(name) || strings.ContainsAny(name, `/\`) {
+		return "", fmt.Errorf("browser archive name must be a safe basename")
+	}
+	return name, nil
+}
+
+func stagedExecutablePath(paths InstallPaths, stagedDir string) (string, error) {
+	relative, err := filepath.Rel(paths.InstallDir, paths.Executable)
+	if err != nil || relative == "." || filepath.IsAbs(relative) || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || relative == ".." {
+		return "", fmt.Errorf("browser executable path must stay within install dir")
+	}
+	return filepath.Join(stagedDir, relative), nil
+}
+
+func validateExecutable(path string) error {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return fmt.Errorf("browser executable validation failed: %s", path)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
+		return fmt.Errorf("browser executable validation failed: %s", path)
+	}
+	return nil
 }
 
 func download(ctx context.Context, url, destination string) error {

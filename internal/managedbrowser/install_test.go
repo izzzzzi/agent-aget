@@ -66,6 +66,33 @@ func TestInstallRejectsChecksumMismatch(t *testing.T) {
 	}
 }
 
+func TestInstallCreatesMissingCacheRoot(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "missing-cache-root")
+	t.Setenv(CacheEnv, root)
+	archive := makeZip(t, "chrome-linux64/chrome", "#!/bin/sh\n")
+	sum := sha256.Sum256(archive)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(archive)
+	}))
+	defer server.Close()
+
+	_, err := Install(context.Background(), Manifest{
+		Version: "148.0.7778.98",
+		Platforms: map[string]Platform{"linux-x64": {
+			Archive:        "chrome-linux64.zip",
+			URL:            server.URL,
+			SHA256:         hex.EncodeToString(sum[:]),
+			ExecutablePath: "chrome-linux64/chrome",
+		}},
+	}, "linux-x64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(root); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestInstallDownloadsExtractsAndValidatesExecutable(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("mode executable checks differ on windows")
@@ -96,6 +123,85 @@ func TestInstallDownloadsExtractsAndValidatesExecutable(t *testing.T) {
 	}
 	if _, err := os.Stat(result.Path); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestInstallRejectsUnsafeArchiveName(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(CacheEnv, root)
+	archiveBody := makeZip(t, "chrome-linux64/chrome", "#!/bin/sh\n")
+	sum := sha256.Sum256(archiveBody)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(archiveBody)
+	}))
+	defer server.Close()
+	tests := []string{
+		"../chrome.zip",
+	}
+	if runtime.GOOS != "windows" {
+		tests = append(tests, "/tmp/chrome.zip")
+		defer os.Remove("/tmp/chrome.zip")
+	}
+	for _, archive := range tests {
+		t.Run(archive, func(t *testing.T) {
+			_, err := Install(context.Background(), Manifest{
+				Version: "148.0.7778.98",
+				Platforms: map[string]Platform{"linux-x64": {
+					Archive:        archive,
+					URL:            server.URL,
+					SHA256:         hex.EncodeToString(sum[:]),
+					ExecutablePath: "chrome-linux64/chrome",
+				}},
+			}, "linux-x64")
+			if err == nil {
+				t.Fatal("expected unsafe archive error")
+			}
+		})
+	}
+}
+
+func TestInstallKeepsExistingInstallWhenNewArchiveInvalid(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("mode executable checks differ on windows")
+	}
+	root := t.TempDir()
+	t.Setenv(CacheEnv, root)
+	entry := Platform{
+		Archive:        "chrome-linux64.zip",
+		ExecutablePath: "chrome-linux64/chrome",
+	}
+	paths, err := Paths("148.0.7778.98", "linux-x64", entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.Executable), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.Executable, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	archive := makeZip(t, "chrome-linux64/not-chrome", "new")
+	sum := sha256.Sum256(archive)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(archive)
+	}))
+	defer server.Close()
+	entry.URL = server.URL
+	entry.SHA256 = hex.EncodeToString(sum[:])
+
+	_, err = Install(context.Background(), Manifest{
+		Version:   "148.0.7778.98",
+		Platforms: map[string]Platform{"linux-x64": entry},
+	}, "linux-x64")
+	if err == nil {
+		t.Fatal("expected staged executable validation error")
+	}
+	body, err := os.ReadFile(paths.Executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "old" {
+		t.Fatalf("existing executable body = %q, want old", string(body))
 	}
 }
 
