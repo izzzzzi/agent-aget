@@ -89,7 +89,7 @@ aget session close -s SID
 Операционные команды выводят один JSON-объект в stdout. Ошибки выводятся в stderr и имеют форму:
 
 ```json
-{"ok":false,"code":"invalid_args","message":"command required","details":{"hint":"run aget --help"}}
+{"ok":false,"code":"invalid_args","message":"command required","details":{"hint":"run `aget --help` for agent command map or `aget prompt` for full agent instructions"}}
 ```
 
 Успешные ответы содержат `ok: true`. `aget open` возвращает `sid`, данные браузера, запись сессии и `next_commands` для дальнейших действий.

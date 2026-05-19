@@ -89,7 +89,7 @@ aget session close -s SID
 Operational commands print one JSON object to stdout. Errors are printed to stderr:
 
 ```json
-{"ok":false,"code":"invalid_args","message":"command required","details":{"hint":"run aget --help"}}
+{"ok":false,"code":"invalid_args","message":"command required","details":{"hint":"run `aget --help` for agent command map or `aget prompt` for full agent instructions"}}
 ```
 
 Successful responses include `ok: true`. `aget open` returns `sid`, browser details, the session record, and `next_commands` for follow-up actions.
