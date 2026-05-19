@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const pkg = require('../package.json');
+const browserInstall = require('./browser-install');
 const { target } = require('./platform');
 
 const root = path.join(__dirname, '..');
@@ -167,6 +168,15 @@ async function main() {
     ensureNativeDir();
     fs.copyFileSync(extracted, binaryPath(info));
     fs.chmodSync(binaryPath(info), 0o755);
+
+    if (process.env.AGET_SKIP_BROWSER_DOWNLOAD !== '1') {
+      try {
+        await browserInstall.installFromManifest();
+      } catch (error) {
+        console.warn(`agent-aget: managed browser install skipped: ${error.message}`);
+        console.warn('agent-aget: run `aget browser install` to install it later');
+      }
+    }
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

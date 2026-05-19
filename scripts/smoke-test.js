@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const browserInstall = require('./browser-install');
 const { target } = require('./platform');
 const { expectedArchives, verifyArtifactFiles } = require('./release-contract-test');
 
@@ -31,6 +32,10 @@ assert.deepEqual(target('win32', 'x64'), {
 assert.throws(() => target('win32', 'arm64'), /windows\/arm64/);
 assert.throws(() => target('freebsd', 'x64'), /Unsupported platform/);
 assert.throws(() => target('linux', 'ia32'), /Unsupported architecture/);
+
+assert.equal(browserInstall.platformKey('darwin', 'arm64'), 'darwin-arm64');
+assert.equal(browserInstall.platformKey('linux', 'x64'), 'linux-x64');
+assert.equal(browserInstall.platformKey('win32', 'x64'), 'win32-x64');
 
 assert.deepEqual(expectedArchives('1.0.0'), [
   'aget_1.0.0_linux_amd64.tar.gz',

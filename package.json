@@ -18,10 +18,11 @@
     "aget": "bin/aget.js"
   },
   "scripts": {
-    "test": "node scripts/smoke-test.js",
+    "test": "node scripts/smoke-test.js && node scripts/browser-install.test.js",
     "postinstall": "node scripts/install.js",
-    "check": "test -z \"$(gofmt -l .)\" && go vet ./... && go test ./... && npm run smoke && npm pack --dry-run",
+    "check": "test -z \"$(gofmt -l .)\" && go vet ./... && go test ./... && npm run smoke && npm run test:browser-install && npm pack --dry-run",
     "smoke": "node scripts/smoke-test.js",
+    "test:browser-install": "node scripts/browser-install.test.js",
     "release:contract": "node scripts/release-contract-test.js",
     "pack:dry": "npm pack --dry-run"
   },
