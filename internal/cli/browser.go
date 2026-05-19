@@ -30,7 +30,7 @@ func newBrowserStatusCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			manifest, platform, _, paths, err := currentManagedBrowser()
 			if err != nil {
-				return writeError(cmd, "browser_status_failed", err.Error(), nil)
+				return writeError(cmd, browserErrorCode("browser_status_failed", err), err.Error(), nil)
 			}
 			status := managedbrowser.Status(paths)
 			return writeJSON(cmd, map[string]any{
@@ -56,7 +56,7 @@ func newBrowserPathCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_, _, _, paths, err := currentManagedBrowser()
 			if err != nil {
-				return writeError(cmd, "browser_path_failed", err.Error(), nil)
+				return writeError(cmd, browserErrorCode("browser_path_failed", err), err.Error(), nil)
 			}
 			status := managedbrowser.Status(paths)
 			if !status.Installed || !status.Executable {
@@ -80,19 +80,11 @@ func newBrowserInstallCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			manifest, platform, _, _, err := currentManagedBrowser()
 			if err != nil {
-				code := "browser_install_failed"
-				if isUnsupportedPlatformError(err) {
-					code = "browser_unsupported_platform"
-				}
-				return writeError(cmd, code, err.Error(), nil)
+				return writeError(cmd, browserErrorCode("browser_install_failed", err), err.Error(), nil)
 			}
 			result, err := managedbrowser.Install(context.Background(), manifest, platform)
 			if err != nil {
-				code := "browser_install_failed"
-				if isUnsupportedPlatformError(err) {
-					code = "browser_unsupported_platform"
-				}
-				return writeError(cmd, code, err.Error(), nil)
+				return writeError(cmd, browserErrorCode("browser_install_failed", err), err.Error(), nil)
 			}
 			return writeJSON(cmd, result)
 		},
@@ -120,4 +112,11 @@ func currentManagedBrowser() (managedbrowser.Manifest, string, managedbrowser.Pl
 
 func isUnsupportedPlatformError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "unsupported managed browser platform")
+}
+
+func browserErrorCode(fallback string, err error) string {
+	if isUnsupportedPlatformError(err) {
+		return "browser_unsupported_platform"
+	}
+	return fallback
 }

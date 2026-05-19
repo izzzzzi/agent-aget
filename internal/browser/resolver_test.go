@@ -82,6 +82,14 @@ func TestResolveBinaryUsesManagedBrowserBeforeSystemCandidates(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("mode executable checks differ on windows")
 	}
+	t.Setenv("AGET_BROWSER_PATH", "")
+	systemDir := t.TempDir()
+	system := filepath.Join(systemDir, candidateNames()[0])
+	if err := os.WriteFile(system, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", systemDir)
+
 	managed := filepath.Join(t.TempDir(), "managed-chrome")
 	if err := os.WriteFile(managed, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
