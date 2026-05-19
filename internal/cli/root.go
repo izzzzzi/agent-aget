@@ -99,19 +99,14 @@ func (f *agentHelpFlag) Set(value string) error {
 	if err != nil {
 		return err
 	}
-	if !enabled {
-		f.enabled = false
-		return nil
-	}
-	if unknown := unknownPreHelpSubcommand(f.cmd); unknown != "" {
-		return errors.New("unknown command " + unknown)
-	}
-	f.enabled = true
+	f.enabled = enabled
 	return nil
 }
 
 func (f *agentHelpFlag) String() string {
-	if f.enabled {
+	// Cobra checks the help flag with pflag.GetBool, which reads Value.String().
+	// By waiting until here, pflag has finished parsing and trailing args are visible.
+	if f.enabled && len(f.cmd.Flags().Args()) == 0 {
 		return "true"
 	}
 	return "false"
@@ -119,28 +114,6 @@ func (f *agentHelpFlag) String() string {
 
 func (f *agentHelpFlag) Type() string {
 	return "bool"
-}
-
-func unknownPreHelpSubcommand(cmd *cobra.Command) string {
-	if cmd == nil || !cmd.HasSubCommands() {
-		return ""
-	}
-	for _, arg := range cmd.Flags().Args() {
-		if isFlagLike(arg) {
-			continue
-		}
-		for _, child := range cmd.Commands() {
-			if child.Name() == arg || child.HasAlias(arg) {
-				return ""
-			}
-		}
-		return arg
-	}
-	return ""
-}
-
-func isFlagLike(arg string) bool {
-	return len(arg) > 1 && arg[0] == '-'
 }
 
 func writeAgentHelp(cmd *cobra.Command) error {

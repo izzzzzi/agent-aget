@@ -146,15 +146,30 @@ func TestInvalidArgsHintPointsToPrompt(t *testing.T) {
 	}
 }
 
-func TestUnknownCommandWithHelpReturnsJSONError(t *testing.T) {
-	stdout, stderr, err := executeForTest("unknown", "--help")
-	if err == nil {
-		t.Fatal("expected error")
+func TestHelpWithInvalidPositionalsReturnsJSONError(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "unknown before root help", args: []string{"unknown", "--help"}},
+		{name: "unknown after root help", args: []string{"--help", "unknown"}},
+		{name: "unknown page subcommand before help", args: []string{"page", "bogus", "--help"}},
+		{name: "unknown page subcommand after help", args: []string{"page", "--help", "bogus"}},
+		{name: "extra page read arg after help", args: []string{"page", "read", "--help", "bogus"}},
 	}
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, err := executeForTest(tt.args...)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if stdout != "" {
+				t.Fatalf("stdout = %q, want empty", stdout)
+			}
+			assertInvalidArgsJSON(t, stderr)
+		})
 	}
-	assertInvalidArgsJSON(t, stderr)
 }
 
 func TestCompletionCommandDisabled(t *testing.T) {
