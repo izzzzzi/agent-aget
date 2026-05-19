@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -47,6 +48,10 @@ func TestOpenReturnsCommandMapAndSessionName(t *testing.T) {
 	}
 	t.Setenv("AGET_STATE_DIR", t.TempDir())
 	browserPath := writeFakeBrowser(t)
+	restore := replaceOpenPageWaiterForTest(t, func(ctx context.Context, debugURL, url string) error {
+		return nil
+	})
+	defer restore()
 
 	stdout, stderr, err := executeForTest("open", "https://example.com", "--browser-path", browserPath, "-n", "research")
 	if err != nil {
@@ -110,6 +115,50 @@ func TestOpenReturnsCommandMapAndSessionName(t *testing.T) {
 	}
 }
 
+func TestOpenWaitsForPageBeforeReturning(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script fake executable is not portable to windows")
+	}
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	browserPath := writeFakeBrowser(t)
+	var gotDebugURL string
+	var gotURL string
+	restore := replaceOpenPageWaiterForTest(t, func(ctx context.Context, debugURL, url string) error {
+		gotDebugURL = debugURL
+		gotURL = url
+		return nil
+	})
+	defer restore()
+
+	stdout, stderr, err := executeForTest("open", "https://example.com/docs", "--browser-path", browserPath)
+	if err != nil {
+		t.Fatalf("open failed: %v stderr=%s", err, stderr)
+	}
+	var got struct {
+		Browser struct {
+			PID int `json:"pid"`
+		} `json:"browser"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if got.Browser.PID > 0 {
+			if process, err := os.FindProcess(got.Browser.PID); err == nil {
+				_ = process.Kill()
+				_, _ = process.Wait()
+			}
+		}
+	})
+
+	if gotDebugURL == "" {
+		t.Fatal("open did not wait for browser page readiness")
+	}
+	if gotURL != "https://example.com/docs" {
+		t.Fatalf("wait URL = %q, want https://example.com/docs", gotURL)
+	}
+}
+
 func writeFakeBrowser(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -119,4 +168,13 @@ func writeFakeBrowser(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return exe
+}
+
+func replaceOpenPageWaiterForTest(t *testing.T, waiter func(context.Context, string, string) error) func() {
+	t.Helper()
+	old := waitForOpenPage
+	waitForOpenPage = waiter
+	return func() {
+		waitForOpenPage = old
+	}
 }

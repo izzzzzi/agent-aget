@@ -14,6 +14,25 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
+func TestWaitForPageURLAcceptsNonBlankPageTarget(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/json/list" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id":"target-1","type":"page","url":"https://example.com/"}]`))
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	if err := WaitForPageURL(ctx, server.URL, "https://example.com"); err != nil {
+		t.Fatalf("WaitForPageURL returned error for normalized URL: %v", err)
+	}
+}
+
 func TestClickReturnsCanceledContextWithoutRunningAction(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

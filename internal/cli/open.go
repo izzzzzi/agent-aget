@@ -1,15 +1,21 @@
 package cli
 
 import (
+	"context"
 	"path/filepath"
 	"time"
 
 	"github.com/izzzzzi/agent-aget/internal/browser"
+	"github.com/izzzzzi/agent-aget/internal/cdp"
 	"github.com/izzzzzi/agent-aget/internal/ids"
 	sessionstore "github.com/izzzzzi/agent-aget/internal/session"
 	"github.com/izzzzzi/agent-aget/internal/state"
 	"github.com/spf13/cobra"
 )
+
+var waitForOpenPage = cdp.WaitForPageURL
+
+var openPageReadyTimeout = 10 * time.Second
 
 func newOpenCommand() *cobra.Command {
 	var name string
@@ -50,6 +56,13 @@ func newOpenCommand() *cobra.Command {
 			if err != nil {
 				return writeError(cmd, "browser_launch_failed", err.Error(), nil)
 			}
+			readyCtx, readyCancel := context.WithTimeout(context.Background(), openPageReadyTimeout)
+			if err := waitForOpenPage(readyCtx, process.DebugURL, url); err != nil {
+				readyCancel()
+				_ = process.Stop()
+				return writeError(cmd, "browser_launch_failed", err.Error(), map[string]any{"debug_url": process.DebugURL})
+			}
+			readyCancel()
 
 			now := time.Now().UTC()
 			record := sessionstore.Record{

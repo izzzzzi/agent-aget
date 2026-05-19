@@ -3,6 +3,7 @@ package cdp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -50,21 +51,8 @@ type pageTarget struct {
 }
 
 func fetchFirstPageTargetID(ctx context.Context, debugURL string) (target.ID, error) {
-	url := strings.TrimRight(debugURL, "/") + "/json/list"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	targets, err := fetchPageTargets(ctx, debugURL)
 	if err != nil {
-		return "", err
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("devtools target list returned %s", resp.Status)
-	}
-	var targets []pageTarget
-	if err := json.NewDecoder(resp.Body).Decode(&targets); err != nil {
 		return "", err
 	}
 	for _, candidate := range targets {
@@ -77,12 +65,73 @@ func fetchFirstPageTargetID(ctx context.Context, debugURL string) (target.ID, er
 			return target.ID(candidate.ID), nil
 		}
 	}
-	return "", fmt.Errorf("no page target found at %s", url)
+	return "", fmt.Errorf("no page target found at %s", strings.TrimRight(debugURL, "/")+"/json/list")
+}
+
+func WaitForPageURL(ctx context.Context, debugURL, pageURL string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var lastErr error
+	for {
+		targets, err := fetchPageTargets(ctx, debugURL)
+		if err == nil {
+			hasReadyPage := false
+			for _, candidate := range targets {
+				if candidate.Type != "page" || candidate.ID == "" || candidate.URL == "" || candidate.URL == "about:blank" {
+					continue
+				}
+				if pageURL == "" || candidate.URL == pageURL {
+					return nil
+				}
+				hasReadyPage = true
+			}
+			if hasReadyPage {
+				return nil
+			}
+			lastErr = fmt.Errorf("page target for %s not ready", pageURL)
+		} else {
+			lastErr = err
+		}
+
+		timer := time.NewTimer(100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			if lastErr != nil {
+				return lastErr
+			}
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func fetchPageTargets(ctx context.Context, debugURL string) ([]pageTarget, error) {
+	url := strings.TrimRight(debugURL, "/") + "/json/list"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("devtools target list returned %s", resp.Status)
+	}
+	var targets []pageTarget
+	if err := json.NewDecoder(resp.Body).Decode(&targets); err != nil {
+		return nil, err
+	}
+	return targets, nil
 }
 
 func (d *ChromeDPDriver) Read(ctx context.Context) (PageState, error) {
 	var state PageState
 	if err := d.runActions(ctx,
+		waitForReadableBody(),
 		chromedp.Location(&state.URL),
 		chromedp.Title(&state.Title),
 		chromedp.Text("body", &state.Text, chromedp.ByQuery),
@@ -90,6 +139,21 @@ func (d *ChromeDPDriver) Read(ctx context.Context) (PageState, error) {
 		return PageState{}, err
 	}
 	return state, nil
+}
+
+func waitForReadableBody() chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		err := chromedp.Poll(
+			`document.body && document.body.innerText && document.body.innerText.trim().length > 0`,
+			nil,
+			chromedp.WithPollingInterval(100*time.Millisecond),
+			chromedp.WithPollingTimeout(5*time.Second),
+		).Do(ctx)
+		if errors.Is(err, chromedp.ErrPollingTimeout) {
+			return nil
+		}
+		return err
+	})
 }
 
 func (d *ChromeDPDriver) Click(ctx context.Context, selector string) error {
