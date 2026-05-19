@@ -31,6 +31,7 @@
   "files": [
     "bin/aget.js",
     "scripts",
+    "browser-manifest.json",
     "README.md",
     "README.en.md",
     "LICENSE"
