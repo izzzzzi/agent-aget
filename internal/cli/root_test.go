@@ -127,6 +127,39 @@ func TestBrowserHelpReturnsAgentHelp(t *testing.T) {
 	}
 }
 
+func TestOpenHelpReturnsAgentHelp(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "help without url", args: []string{"open", "--help"}},
+		{name: "help before url", args: []string{"open", "--help", "https://example.com"}},
+		{name: "help after url", args: []string{"open", "https://example.com", "--help"}},
+		{name: "short help before url", args: []string{"open", "-h", "https://example.com"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("AGET_BROWSER_PATH", "/missing/browser")
+
+			stdout, stderr, err := executeForTest(tt.args...)
+			if err != nil {
+				t.Fatalf("expected help success, got err=%v stderr=%s", err, stderr)
+			}
+			if stderr != "" {
+				t.Fatalf("stderr = %q, want empty", stderr)
+			}
+			var got map[string]any
+			if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+				t.Fatal(err)
+			}
+			if got["ok"] != true || got["kind"] != "agent_help" || got["command_group"] != "open" {
+				t.Fatalf("unexpected open help payload: %#v", got)
+			}
+		})
+	}
+}
+
 func TestInvalidArgsHintPointsToPrompt(t *testing.T) {
 	_, stderr, err := executeForTest()
 	if err == nil {
@@ -156,6 +189,8 @@ func TestHelpWithInvalidPositionalsReturnsJSONError(t *testing.T) {
 		{name: "unknown page subcommand before help", args: []string{"page", "bogus", "--help"}},
 		{name: "unknown page subcommand after help", args: []string{"page", "--help", "bogus"}},
 		{name: "extra page read arg after help", args: []string{"page", "read", "--help", "bogus"}},
+		{name: "extra open arg after help before url", args: []string{"open", "--help", "https://example.com", "extra"}},
+		{name: "extra open arg after help after url", args: []string{"open", "https://example.com", "--help", "extra"}},
 	}
 
 	for _, tt := range tests {

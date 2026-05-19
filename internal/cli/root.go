@@ -106,7 +106,7 @@ func (f *agentHelpFlag) Set(value string) error {
 func (f *agentHelpFlag) String() string {
 	// Cobra checks the help flag with pflag.GetBool, which reads Value.String().
 	// By waiting until here, pflag has finished parsing and trailing args are visible.
-	if f.enabled && len(f.cmd.Flags().Args()) == 0 {
+	if f.enabled && helpArgsValid(f.cmd) {
 		return "true"
 	}
 	return "false"
@@ -116,8 +116,19 @@ func (f *agentHelpFlag) Type() string {
 	return "bool"
 }
 
+func helpArgsValid(cmd *cobra.Command) bool {
+	// Keep this side-effect-free: cmd.Args validators write JSON errors. This
+	// mirrors help-time positional arity and must be updated for future
+	// commands that accept positionals.
+	args := cmd.Flags().Args()
+	if cmd.Name() == "open" {
+		return len(args) <= 1
+	}
+	return len(args) == 0
+}
+
 func writeAgentHelp(cmd *cobra.Command) error {
-	if cmd == nil || cmd.CommandPath() == "aget" {
+	if cmd.CommandPath() == "aget" {
 		return writeJSON(cmd, agenthelp.RootHelp())
 	}
 	group := agentHelpGroup(cmd)
