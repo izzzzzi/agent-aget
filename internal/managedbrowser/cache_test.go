@@ -10,7 +10,7 @@ import (
 
 func TestCacheDirUsesOverride(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("AGET_BROWSER_CACHE_DIR", root)
+	t.Setenv(CacheEnv, root)
 
 	got, err := CacheRoot()
 	if err != nil {
@@ -23,8 +23,8 @@ func TestCacheDirUsesOverride(t *testing.T) {
 
 func TestInstallPathsUseVersionAndPlatform(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("AGET_BROWSER_CACHE_DIR", root)
-	entry := Platform{ExecutablePath: filepath.Join("chrome-linux64", "chrome")}
+	t.Setenv(CacheEnv, root)
+	entry := Platform{ExecutablePath: "chrome-linux64/chrome"}
 
 	paths, err := Paths("148.0.7778.98", "linux-x64", entry)
 	if err != nil {
@@ -39,13 +39,63 @@ func TestInstallPathsUseVersionAndPlatform(t *testing.T) {
 	}
 }
 
+func TestPathsRejectsUnsafeExecutablePath(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(CacheEnv, root)
+
+	tests := []string{
+		"/tmp/chrome",
+		"../chrome",
+		"chrome-linux64/../chrome",
+	}
+	for _, executablePath := range tests {
+		t.Run(executablePath, func(t *testing.T) {
+			_, err := Paths("148.0.7778.98", "linux-x64", Platform{ExecutablePath: executablePath})
+			if err == nil {
+				t.Fatalf("Paths() error = nil, want error")
+			}
+		})
+	}
+}
+
+func TestPathsRejectsUnsafeVersionAndPlatform(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(CacheEnv, root)
+	entry := Platform{ExecutablePath: "chrome-linux64/chrome"}
+
+	tests := []struct {
+		name     string
+		version  string
+		platform string
+	}{
+		{
+			name:     "traversal version",
+			version:  "../version",
+			platform: "linux-x64",
+		},
+		{
+			name:     "traversal platform",
+			version:  "148.0.7778.98",
+			platform: "../platform",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Paths(tt.version, tt.platform, entry)
+			if err == nil {
+				t.Fatalf("Paths() error = nil, want error")
+			}
+		})
+	}
+}
+
 func TestStatusDetectsInstalledExecutable(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("mode executable checks differ on windows")
 	}
 	root := t.TempDir()
-	t.Setenv("AGET_BROWSER_CACHE_DIR", root)
-	entry := Platform{ExecutablePath: filepath.Join("chrome-linux64", "chrome")}
+	t.Setenv(CacheEnv, root)
+	entry := Platform{ExecutablePath: "chrome-linux64/chrome"}
 
 	paths, err := Paths("148.0.7778.98", "linux-x64", entry)
 	if err != nil {
