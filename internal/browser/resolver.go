@@ -6,9 +6,28 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+
+	"github.com/izzzzzi/agent-aget/internal/managedbrowser"
 )
 
-const browserNotFoundMessage = "CloakBrowser-compatible binary not found; set --browser-path or AGET_BROWSER_PATH"
+const browserNotFoundMessage = "Chromium-compatible browser not found; run `aget browser install`, set --browser-path, or set AGET_BROWSER_PATH"
+
+var managedBrowserPath = func() (string, bool) {
+	manifest, err := managedbrowser.BundledManifest()
+	if err != nil {
+		return "", false
+	}
+	entry, err := manifest.PlatformEntry(managedbrowser.CurrentPlatformKey())
+	if err != nil {
+		return "", false
+	}
+	paths, err := managedbrowser.Paths(manifest.Version, managedbrowser.CurrentPlatformKey(), entry)
+	if err != nil {
+		return "", false
+	}
+	status := managedbrowser.Status(paths)
+	return paths.Executable, status.Installed && status.Executable
+}
 
 func ResolveBinary(explicit string) (string, error) {
 	if explicit != "" {
@@ -24,6 +43,10 @@ func ResolveBinary(explicit string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("%s: %w", browserNotFoundMessage, err)
 		}
+		return path, nil
+	}
+
+	if path, ok := managedBrowserPath(); ok {
 		return path, nil
 	}
 

@@ -78,6 +78,27 @@ func TestResolveBinaryRejectsNonExecutableEnvPath(t *testing.T) {
 	assertExecutableError(t, err)
 }
 
+func TestResolveBinaryUsesManagedBrowserBeforeSystemCandidates(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("mode executable checks differ on windows")
+	}
+	managed := filepath.Join(t.TempDir(), "managed-chrome")
+	if err := os.WriteFile(managed, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := managedBrowserPath
+	managedBrowserPath = func() (string, bool) { return managed, true }
+	defer func() { managedBrowserPath = old }()
+
+	got, err := ResolveBinary("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != managed {
+		t.Fatalf("ResolveBinary() = %q, want managed browser %q", got, managed)
+	}
+}
+
 func assertActionableBrowserPathError(t *testing.T, err error) {
 	t.Helper()
 	message := err.Error()
