@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const http = require('node:http');
 const https = require('node:https');
 const os = require('node:os');
 const path = require('node:path');
@@ -9,16 +10,17 @@ const { execFileSync } = require('node:child_process');
 
 const root = path.join(__dirname, '..');
 
-function cacheRoot() {
-  if (process.env.AGET_BROWSER_CACHE_DIR) return process.env.AGET_BROWSER_CACHE_DIR;
-  return path.join(
-    os.homedir(),
-    process.platform === 'darwin'
-      ? 'Library/Caches'
-      : process.platform === 'win32'
-        ? 'AppData/Local'
-        : '.cache',
-  );
+function cacheRoot(options = {}) {
+  const platform = options.platform || process.platform;
+  const env = options.env || process.env;
+  const homedir = options.homedir || os.homedir();
+
+  if (env.AGET_BROWSER_CACHE_DIR) return env.AGET_BROWSER_CACHE_DIR;
+  if (platform === 'linux' && env.XDG_CACHE_HOME) return env.XDG_CACHE_HOME;
+  if (platform === 'win32' && env.LOCALAPPDATA) return env.LOCALAPPDATA;
+  if (platform === 'darwin') return path.join(homedir, 'Library', 'Caches');
+  if (platform === 'win32') return path.win32.join(homedir, 'AppData', 'Local');
+  return path.join(homedir, '.cache');
 }
 
 function platformKey(platform = process.platform, arch = process.arch) {
@@ -33,6 +35,13 @@ function platformKey(platform = process.platform, arch = process.arch) {
 function pathsFor(manifest, key = platformKey()) {
   const entry = manifest.platforms[key];
   if (!entry) throw new Error(`unsupported managed browser platform: ${key}`);
+  if (!safePathName(manifest.version)) {
+    throw new Error('browser install path version must be a relative path name');
+  }
+  if (!safePathName(key)) {
+    throw new Error('browser install path platform must be a relative path name');
+  }
+  const executablePath = safeExecutablePath(entry.executable_path);
   const cacheDir = cacheRoot();
   const installDir = path.join(
     cacheDir,
@@ -46,8 +55,39 @@ function pathsFor(manifest, key = platformKey()) {
     entry,
     cacheDir,
     installDir,
-    executable: path.join(installDir, ...entry.executable_path.split('/')),
+    executable: path.join(installDir, executablePath),
   };
+}
+
+function safePathName(name) {
+  return typeof name === 'string' &&
+    name !== '' &&
+    name !== '.' &&
+    name !== '..' &&
+    !name.includes('/') &&
+    !name.includes('\\');
+}
+
+function safeArchiveName(name) {
+  if (!safePathName(name) || path.isAbsolute(name) || path.win32.isAbsolute(name)) {
+    throw new Error('browser archive name must be a safe basename');
+  }
+  return name;
+}
+
+function safeExecutablePath(name) {
+  if (typeof name !== 'string' || name === '') {
+    throw new Error('browser executable path must be relative');
+  }
+  if (path.isAbsolute(name) || path.win32.isAbsolute(name)) {
+    throw new Error('browser executable path must be relative');
+  }
+  for (const segment of name.split('/')) {
+    if (segment === '' || segment === '.' || segment === '..' || segment.includes('\\')) {
+      throw new Error('browser executable path contains unsafe path segment');
+    }
+  }
+  return path.join(...name.split('/'));
 }
 
 function isExecutable(file) {
@@ -63,7 +103,8 @@ function isExecutable(file) {
 
 function download(url, destination) {
   return new Promise((resolve, reject) => {
-    const request = https.get(url, (response) => {
+    const client = url.startsWith('http://') ? http : https;
+    const request = client.get(url, (response) => {
       if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
         response.resume();
         download(response.headers.location, destination).then(resolve, reject);
@@ -84,6 +125,25 @@ function download(url, destination) {
 
     request.on('error', reject);
   });
+}
+
+function stagedExecutablePath(info, stagedDir) {
+  const relative = path.relative(info.installDir, info.executable);
+  if (
+    relative === '' ||
+    relative === '..' ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    throw new Error('browser executable path must stay within install dir');
+  }
+  return path.join(stagedDir, relative);
+}
+
+function validateExecutable(file) {
+  if (!isExecutable(file)) {
+    throw new Error(`browser executable validation failed: ${file}`);
+  }
 }
 
 function sha256(filePath) {
@@ -142,21 +202,48 @@ async function installFromManifest(manifest = null, key = platformKey()) {
     return info;
   }
 
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-aget-browser-'));
-  const archivePath = path.join(tmp, info.entry.archive);
+  const archiveName = safeArchiveName(info.entry.archive);
+  fs.mkdirSync(path.dirname(info.installDir), { recursive: true });
+  const tmp = fs.mkdtempSync(path.join(path.dirname(info.installDir), '.agent-aget-browser-'));
+  const archivePath = path.join(tmp, archiveName);
   const extractDir = path.join(tmp, 'extract');
+  const stagedDir = path.join(tmp, 'staged');
+  const backupDir = path.join(tmp, 'previous');
+  let hadPreviousInstall = false;
 
   try {
     await download(info.entry.url, archivePath);
     verifyChecksum(archivePath, info.entry.sha256);
     extractZip(archivePath, extractDir);
+    fs.renameSync(extractDir, stagedDir);
 
-    fs.rmSync(info.installDir, { recursive: true, force: true });
-    fs.mkdirSync(path.dirname(info.installDir), { recursive: true });
-    fs.renameSync(extractDir, info.installDir);
+    const stagedExecutable = stagedExecutablePath(info, stagedDir);
+    if (process.platform !== 'win32' && fs.existsSync(stagedExecutable)) {
+      fs.chmodSync(stagedExecutable, 0o755);
+    }
+    validateExecutable(stagedExecutable);
 
-    if (!isExecutable(info.executable)) {
-      throw new Error(`managed browser executable not found: ${info.executable}`);
+    try {
+      fs.renameSync(info.installDir, backupDir);
+      hadPreviousInstall = true;
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+
+    try {
+      fs.renameSync(stagedDir, info.installDir);
+      validateExecutable(info.executable);
+      if (hadPreviousInstall) {
+        fs.rmSync(backupDir, { recursive: true, force: true });
+      }
+    } catch (error) {
+      fs.rmSync(info.installDir, { recursive: true, force: true });
+      if (hadPreviousInstall) {
+        fs.renameSync(backupDir, info.installDir);
+      }
+      throw error;
     }
 
     return info;
