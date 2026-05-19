@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -61,15 +62,88 @@ func TestVersionCommand(t *testing.T) {
 	}
 }
 
-func TestVersionHelpReturnsJSONError(t *testing.T) {
+func TestVersionHelpReturnsAgentHelp(t *testing.T) {
 	stdout, stderr, err := executeForTest("version", "--help")
+	if err != nil {
+		t.Fatalf("expected help success, got err=%v stderr=%s", err, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["ok"] != true || got["kind"] != "agent_help" || got["command_group"] != "version" {
+		t.Fatalf("unexpected help payload: %#v", got)
+	}
+}
+
+func TestRootHelpReturnsAgentHelp(t *testing.T) {
+	stdout, stderr, err := executeForTest("--help")
+	if err != nil {
+		t.Fatalf("expected help success, got err=%v stderr=%s", err, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["tool"] != "aget" || got["audience"] != "llm_agent" || got["agent_prompt_command"] != "aget prompt" {
+		t.Fatalf("unexpected root help payload: %#v", got)
+	}
+	commands, ok := got["commands"].(map[string]any)
+	if !ok {
+		t.Fatalf("commands missing or wrong type: %#v", got["commands"])
+	}
+	if commands["open"] == "" || commands["page_read"] == "" {
+		t.Fatalf("core commands missing: %#v", commands)
+	}
+}
+
+func TestBrowserHelpReturnsAgentHelp(t *testing.T) {
+	stdout, stderr, err := executeForTest("browser", "--help")
+	if err != nil {
+		t.Fatalf("expected help success, got err=%v stderr=%s", err, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["kind"] != "agent_help" || got["command_group"] != "browser" {
+		t.Fatalf("unexpected browser help payload: %#v", got)
+	}
+	commands, ok := got["commands"].(map[string]any)
+	if !ok {
+		t.Fatalf("commands missing or wrong type: %#v", got["commands"])
+	}
+	if commands["status"] == "" || commands["install"] == "" || commands["path"] == "" {
+		t.Fatalf("browser commands missing: %#v", commands)
+	}
+}
+
+func TestInvalidArgsHintPointsToPrompt(t *testing.T) {
+	_, stderr, err := executeForTest()
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stderr), &got); err != nil {
+		t.Fatal(err)
 	}
-	assertInvalidArgsJSON(t, stderr)
+	details, ok := got["details"].(map[string]any)
+	if !ok {
+		t.Fatalf("details missing: %#v", got)
+	}
+	hint, _ := details["hint"].(string)
+	if hint == "" || !strings.Contains(hint, "aget prompt") || !strings.Contains(hint, "aget --help") {
+		t.Fatalf("hint = %q", hint)
+	}
 }
 
 func TestUnknownCommandWithHelpReturnsJSONError(t *testing.T) {

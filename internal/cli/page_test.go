@@ -47,15 +47,41 @@ func TestPageReadMissingSessionReturnsSessionNotFound(t *testing.T) {
 	assertErrorCodeJSON(t, stderr, "session_not_found")
 }
 
-func TestPageNestedHelpReturnsJSONError(t *testing.T) {
+func TestPageReadHelpReturnsAgentHelp(t *testing.T) {
 	stdout, stderr, err := executeForTest("page", "read", "--help")
-	if err == nil {
-		t.Fatal("expected error")
+	if err != nil {
+		t.Fatalf("expected help success, got err=%v stderr=%s", err, stderr)
 	}
-	if stdout != "" {
-		t.Fatalf("stdout = %q, want empty", stdout)
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
 	}
-	assertInvalidArgsJSON(t, stderr)
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["kind"] != "agent_help" {
+		t.Fatalf("kind = %v", got["kind"])
+	}
+	if got["command_group"] != "page" {
+		t.Fatalf("command_group = %v, want page", got["command_group"])
+	}
+}
+
+func TestPageGroupHelpReturnsAgentHelp(t *testing.T) {
+	stdout, stderr, err := executeForTest("page", "--help")
+	if err != nil {
+		t.Fatalf("expected help success, got err=%v stderr=%s", err, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["kind"] != "agent_help" || got["command_group"] != "page" {
+		t.Fatalf("unexpected page help payload: %#v", got)
+	}
 }
 
 func TestPageClickCallsDriver(t *testing.T) {

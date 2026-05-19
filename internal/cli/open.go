@@ -87,6 +87,6 @@ func newOpenCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&name, "name", "n", "", "session name")
 	cmd.Flags().BoolVar(&headful, "headful", false, "run browser with a visible window")
 	cmd.Flags().StringVar(&browserPath, "browser-path", "", "browser binary path")
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	return cmd
 }

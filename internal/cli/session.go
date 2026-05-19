@@ -17,7 +17,7 @@ func newSessionCommand() *cobra.Command {
 			return writeInvalidArgs(cmd, "session subcommand required")
 		},
 	}
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	cmd.AddCommand(newSessionListCommand(), newSessionCloseCommand(), newSessionGCCommand())
 	return cmd
 }
@@ -38,7 +38,7 @@ func newSessionListCommand() *cobra.Command {
 			return writeJSON(cmd, map[string]any{"ok": true, "sessions": records})
 		},
 	}
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	return cmd
 }
 
@@ -62,7 +62,7 @@ func newSessionCloseCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	return cmd
 }
 
@@ -75,6 +75,6 @@ func newSessionGCCommand() *cobra.Command {
 			return writeJSON(cmd, map[string]any{"ok": true, "removed": []string{}})
 		},
 	}
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	return cmd
 }

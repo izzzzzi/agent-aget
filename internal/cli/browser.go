@@ -17,7 +17,7 @@ func newBrowserCommand() *cobra.Command {
 			return writeInvalidArgs(cmd, "browser subcommand required")
 		},
 	}
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	cmd.AddCommand(newBrowserStatusCommand(), newBrowserPathCommand(), newBrowserInstallCommand())
 	return cmd
 }
@@ -44,7 +44,7 @@ func newBrowserStatusCommand() *cobra.Command {
 			})
 		},
 	}
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	return cmd
 }
 
@@ -68,7 +68,7 @@ func newBrowserPathCommand() *cobra.Command {
 			return writeJSON(cmd, map[string]any{"ok": true, "path": paths.Executable})
 		},
 	}
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	return cmd
 }
 
@@ -89,7 +89,7 @@ func newBrowserInstallCommand() *cobra.Command {
 			return writeJSON(cmd, result)
 		},
 	}
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	return cmd
 }
 

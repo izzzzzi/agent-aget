@@ -22,6 +22,6 @@ func newVersionCommand() *cobra.Command {
 			})
 		},
 	}
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	return cmd
 }

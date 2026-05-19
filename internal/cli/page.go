@@ -30,7 +30,7 @@ func newPageCommand() *cobra.Command {
 			return writeInvalidArgs(cmd, "page subcommand required")
 		},
 	}
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	cmd.AddCommand(newPageReadCommand(), newPageClickCommand(), newPageTypeCommand(), newPageScreenshotCommand())
 	return cmd
 }
@@ -65,7 +65,7 @@ func newPageReadCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
 	cmd.Flags().IntVar(&limit, "limit", 80, "maximum number of lines")
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	return cmd
 }
 
@@ -122,7 +122,7 @@ func newPageActionCommand(name string, needsText bool) *cobra.Command {
 	if needsText {
 		cmd.Flags().StringVar(&text, "text", "", "text to type")
 	}
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	return cmd
 }
 
@@ -160,7 +160,7 @@ func newPageScreenshotCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
 	cmd.Flags().StringVar(&path, "path", "", "artifact path")
-	disableHelpFlag(cmd)
+	configureAgentHelp(cmd)
 	return cmd
 }
 
