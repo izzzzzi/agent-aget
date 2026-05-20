@@ -119,6 +119,49 @@ aget agent-instructions
 
 These commands keep the CLI JSON contract.
 
+## Agent CLI Examples
+
+Paste this instruction into Codex, Claude Code, OpenCode, or another terminal agent before browser work:
+
+```text
+Use `aget` for browser tasks.
+
+First load the short instruction:
+aget prompt
+
+Open the target URL:
+aget open URL -n NAME
+
+Keep the returned sid. To understand the page, start with:
+aget page read -s SID --limit 80
+
+If visual state, layout, canvas, captcha, or a text-poor page matters, capture a screenshot:
+aget page screenshot -s SID --path ./page.png
+
+For clicks and typing, use CSS selectors:
+aget page click -s SID --selector CSS
+aget page type -s SID --selector CSS --text TEXT
+
+Always close the session after the task:
+aget session close -s SID
+
+Do not repeat sensitive data from forms, cookies, tokens, or private pages. Continue the workflow with the returned sid and next_commands.
+```
+
+Minimal per-tool prompts:
+
+```text
+Codex: Use `aget` for browser tasks. Start with `aget open URL -n NAME`, keep the returned sid, then read the page with `aget page read -s SID --limit 80`; use `aget page screenshot` for visual state. Close the session with `aget session close -s SID`.
+```
+
+```text
+Claude Code: Before browser work, install/run `aget`. For each page, use the returned sid and JSON `next_commands`; read text first with `aget page read`, and take a screenshot when layout matters or text reading is insufficient.
+```
+
+```text
+OpenCode: Use `aget open`, then `aget page read/click/type/screenshot` with the returned sid. Do not mix sid values across browser sessions, and always close the session when finished.
+```
+
 ## Environment
 
 - `AGET_BROWSER_PATH` - path to a Chromium-compatible browser.

@@ -119,6 +119,49 @@ aget agent-instructions
 
 Все эти команды сохраняют JSON-контракт CLI.
 
+## Примеры для agent CLI
+
+Вставьте эту инструкцию в Codex, Claude Code, OpenCode или другой terminal agent перед браузерной задачей:
+
+```text
+Используй `aget` для браузерных задач.
+
+Сначала получи краткую инструкцию:
+aget prompt
+
+Открой нужный URL:
+aget open URL -n NAME
+
+Сохрани returned sid. Для понимания страницы сначала используй:
+aget page read -s SID --limit 80
+
+Если важен визуальный вид, состояние layout, canvas, captcha или страница плохо читается текстом, сделай screenshot:
+aget page screenshot -s SID --path ./page.png
+
+Для кликов и ввода используй CSS selectors:
+aget page click -s SID --selector CSS
+aget page type -s SID --selector CSS --text TEXT
+
+Всегда закрывай сессию после работы:
+aget session close -s SID
+
+Не пересказывай чувствительные данные из форм, cookies, tokens или private pages. Продолжай workflow через returned sid и next_commands.
+```
+
+Короткие варианты для популярных CLI:
+
+```text
+Codex: Используй `aget` для браузерных задач. Начни с `aget open URL -n NAME`, сохрани returned sid, затем читай страницу через `aget page read -s SID --limit 80`; для визуального состояния используй `aget page screenshot`. Закрывай сессию через `aget session close -s SID`.
+```
+
+```text
+Claude Code: Перед browser-work установи/запусти `aget`. Для каждой страницы используй returned sid и JSON `next_commands`; сначала читай текст через `aget page read`, screenshot делай когда важен layout или текстового чтения недостаточно.
+```
+
+```text
+OpenCode: Используй `aget open`, затем `aget page read/click/type/screenshot` с returned sid. Не смешивай sid разных браузерных сессий и всегда закрывай session после завершения.
+```
+
 ## Переменные окружения
 
 - `AGET_BROWSER_PATH` - путь к Chromium-совместимому браузеру.
