@@ -130,7 +130,7 @@ func fetchPageTargets(ctx context.Context, debugURL string) ([]pageTarget, error
 
 func (d *ChromeDPDriver) Read(ctx context.Context) (PageState, error) {
 	var state PageState
-	if err := d.runActions(ctx,
+	if err := d.runActionsWithTransientRetry(ctx,
 		waitForReadableBody(),
 		chromedp.Location(&state.URL),
 		chromedp.Title(&state.Title),
@@ -166,7 +166,7 @@ func (d *ChromeDPDriver) Type(ctx context.Context, selector, text string) error 
 
 func (d *ChromeDPDriver) Screenshot(ctx context.Context, path string) error {
 	var body []byte
-	if err := d.runActions(ctx, chromedp.FullScreenshot(&body, 90)); err != nil {
+	if err := d.runActionsWithTransientRetry(ctx, chromedp.FullScreenshot(&body, 90)); err != nil {
 		return err
 	}
 	return writeScreenshot(path, body)
@@ -182,12 +182,46 @@ func (d *ChromeDPDriver) runActions(ctx context.Context, actions ...chromedp.Act
 	if run == nil {
 		run = chromedp.Run
 	}
-	runCtx, cancel, err := d.callContext(ctx)
+	runCtx, _, err := d.callContext(ctx)
 	if err != nil {
 		return err
 	}
-	defer cancel()
 	return run(runCtx, actions...)
+}
+
+func (d *ChromeDPDriver) runActionsWithTransientRetry(ctx context.Context, actions ...chromedp.Action) error {
+	waitCtx := ctx
+	if waitCtx == nil {
+		waitCtx = context.Background()
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		err := d.runActions(ctx, actions...)
+		if err == nil || !isTransientPageReadinessError(err) {
+			return err
+		}
+		if !time.Now().Before(deadline) {
+			return err
+		}
+
+		timer := time.NewTimer(150 * time.Millisecond)
+		select {
+		case <-waitCtx.Done():
+			timer.Stop()
+			return waitCtx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func isTransientPageReadinessError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	return strings.Contains(message, "Execution context was destroyed") ||
+		strings.Contains(message, "Cannot take screenshot with 0 width") ||
+		strings.Contains(message, "Cannot take screenshot with 0 height")
 }
 
 func (d *ChromeDPDriver) callContext(ctx context.Context) (context.Context, context.CancelFunc, error) {
