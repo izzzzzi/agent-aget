@@ -1,6 +1,6 @@
 {
   "name": "agent-aget",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Browser workflow helper for LLM agents",
   "license": "MIT",
   "repository": {
