@@ -1,5 +1,12 @@
 # agent-aget
 
+[![CI](https://github.com/izzzzzi/agent-aget/actions/workflows/ci.yml/badge.svg)](https://github.com/izzzzzi/agent-aget/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/izzzzzi/agent-aget)](https://github.com/izzzzzi/agent-aget/releases)
+[![npm](https://img.shields.io/npm/v/agent-aget)](https://www.npmjs.com/package/agent-aget)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+Language: English | [Русский](README.md)
+
 `aget` is a browser workflow helper for LLM agents. The CLI starts a managed Chromium-compatible browser, stores local sessions, and returns machine-readable JSON.
 
 ## Install
@@ -121,3 +128,7 @@ These commands keep the CLI JSON contract.
 ## License
 
 MIT
+
+## Russian
+
+See [README.md](README.md).

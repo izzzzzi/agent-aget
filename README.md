@@ -1,5 +1,12 @@
 # agent-aget
 
+[![CI](https://github.com/izzzzzi/agent-aget/actions/workflows/ci.yml/badge.svg)](https://github.com/izzzzzi/agent-aget/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/izzzzzi/agent-aget)](https://github.com/izzzzzi/agent-aget/releases)
+[![npm](https://img.shields.io/npm/v/agent-aget)](https://www.npmjs.com/package/agent-aget)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+Язык: Русский | [English](README.en.md)
+
 `aget` - помощник для браузерных сценариев LLM-агентов. CLI запускает управляемый Chromium-совместимый браузер, хранит локальные сессии и возвращает машинно-читаемый JSON.
 
 ## Установка
@@ -121,3 +128,7 @@ aget agent-instructions
 ## Лицензия
 
 MIT
+
+## English
+
+See [README.en.md](README.en.md).
