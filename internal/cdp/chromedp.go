@@ -33,7 +33,11 @@ func NewChromeDPDriver(parent context.Context, debugURL string) (*ChromeDPDriver
 	}
 
 	allocatorCtx, allocatorCancel := chromedp.NewRemoteAllocator(context.Background(), debugURL)
-	ctx, cancel := chromedp.NewContext(allocatorCtx, chromedp.WithTargetID(targetID))
+	ctx, cancel := chromedp.NewContext(
+		allocatorCtx,
+		chromedp.WithTargetID(targetID),
+		chromedp.WithLogf(func(string, ...any) {}),
+	)
 	return &ChromeDPDriver{
 		ctx: ctx,
 		cancel: func() {

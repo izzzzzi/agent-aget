@@ -23,6 +23,38 @@ func TestBuildArgsHeadless(t *testing.T) {
 	assertContains(t, args, "https://example.com")
 }
 
+func TestBuildArgsCloakBrowserAddsStealthDefaults(t *testing.T) {
+	args := buildArgs(LaunchOptions{
+		BrowserName:  "cloakbrowser",
+		URL:          "https://example.com",
+		UserDataDir:  "/tmp/profile",
+		Port:         9333,
+		Headless:     true,
+		Fingerprint:  "12345",
+		PlatformName: "macos",
+	})
+
+	assertContains(t, args, "--no-sandbox")
+	assertContains(t, args, "--fingerprint=12345")
+	assertContains(t, args, "--fingerprint-platform=macos")
+	assertContains(t, args, "--headless=new")
+}
+
+func TestBuildArgsCloakBrowserDefaultsFingerprintPlatform(t *testing.T) {
+	args := buildArgs(LaunchOptions{
+		BrowserName: "cloakbrowser",
+		UserDataDir: "/tmp/profile",
+		Port:        9333,
+	})
+
+	assertContainsPrefix(t, args, "--fingerprint=")
+	if runtime.GOOS == "darwin" {
+		assertContains(t, args, "--fingerprint-platform=macos")
+	} else {
+		assertContains(t, args, "--fingerprint-platform=windows")
+	}
+}
+
 func TestFindFreePort(t *testing.T) {
 	port, err := FindFreePort()
 	if err != nil {
@@ -72,4 +104,14 @@ func assertContains(t *testing.T, args []string, want string) {
 	if !slices.Contains(args, want) {
 		t.Fatalf("args = %v, want %q", args, want)
 	}
+}
+
+func assertContainsPrefix(t *testing.T, args []string, prefix string) {
+	t.Helper()
+	for _, arg := range args {
+		if len(arg) >= len(prefix) && arg[:len(prefix)] == prefix {
+			return
+		}
+	}
+	t.Fatalf("args = %v, want prefix %q", args, prefix)
 }

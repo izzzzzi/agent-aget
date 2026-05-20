@@ -39,6 +39,34 @@ func TestInstallPathsUseVersionAndPlatform(t *testing.T) {
 	}
 }
 
+func TestInstallPathsUseManifestBrowserAndPlatformVersion(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(CacheEnv, root)
+	manifest := Manifest{
+		Browser: "cloakbrowser",
+		Version: "146.0.7680.177.4",
+		Platforms: map[string]Platform{
+			"darwin-arm64": {
+				Version:        "145.0.7632.109.2",
+				ExecutablePath: "Chromium.app/Contents/MacOS/Chromium",
+			},
+		},
+	}
+	entry := manifest.Platforms["darwin-arm64"]
+
+	paths, err := PathsForManifest(manifest, "darwin-arm64", entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantDir := filepath.Join(root, "agent-aget", "cloakbrowser", "145.0.7632.109.2", "darwin-arm64")
+	if paths.InstallDir != wantDir {
+		t.Fatalf("InstallDir = %q, want %q", paths.InstallDir, wantDir)
+	}
+	if !strings.HasSuffix(paths.Executable, filepath.Join("darwin-arm64", "Chromium.app", "Contents", "MacOS", "Chromium")) {
+		t.Fatalf("Executable = %q", paths.Executable)
+	}
+}
+
 func TestPathsRejectsUnsafeExecutablePath(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(CacheEnv, root)

@@ -26,7 +26,7 @@ func RootHelp() HelpPayload {
 		AgentPromptCommand: "aget prompt",
 		Docs:               []string{"AGENT_INSTRUCTIONS.md", "README.md"},
 		Workflow: []string{
-			"Use browser status first if you need to verify the managed browser",
+			"Use browser status first if you need to verify the managed CloakBrowser backend",
 			"Open a URL with aget open and keep the returned sid",
 			"Continue with returned sid and next_commands",
 			"Use page read for text extraction before deciding actions",
@@ -70,7 +70,7 @@ func GroupHelp(name string) (HelpPayload, bool) {
 			CommandGroup: "browser", AgentPromptCommand: "aget prompt",
 			Workflow: []string{
 				"Use browser status to inspect the managed browser cache without network access",
-				"Use browser install to download the pinned managed Chrome for Testing",
+				"Use browser install to download the pinned managed CloakBrowser stealth Chromium",
 				"Use browser path to get the managed browser executable path",
 			},
 			Commands: map[string]string{
@@ -127,6 +127,6 @@ func GroupHelp(name string) (HelpPayload, bool) {
 func Prompt() PromptPayload {
 	return PromptPayload{
 		OK: true, Tool: "aget", Audience: "llm_agent", Kind: "agent_prompt",
-		Prompt: "You are using aget, a browser workflow CLI for LLM agents. All operational commands return JSON. Use `aget browser status` to inspect the managed browser when needed. Start with `aget open URL`, save the returned `sid`, then use `aget page read -s SID --limit 80` for text, `aget page click -s SID --selector CSS` for clicks, `aget page type -s SID --selector CSS --text TEXT` for input, and `aget page screenshot -s SID --path ./page.png` when visual state matters. Continue with returned `next_commands` and always run `aget session close -s SID` when finished.",
+		Prompt: "You are using aget, a browser workflow CLI for LLM agents backed by managed CloakBrowser stealth Chromium when available. All operational commands return JSON. Use `aget browser status` to inspect the managed browser when needed. Start with `aget open URL`, save the returned `sid`, then use `aget page read -s SID --limit 80` for text, `aget page click -s SID --selector CSS` for clicks, `aget page type -s SID --selector CSS --text TEXT` for input, and `aget page screenshot -s SID --path ./page.png` when visual state matters. Continue with returned `next_commands` and always run `aget session close -s SID` when finished.",
 	}
 }

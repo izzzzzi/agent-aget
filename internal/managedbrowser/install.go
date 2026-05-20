@@ -1,10 +1,13 @@
 package managedbrowser
 
 import (
+	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +19,7 @@ import (
 
 type InstallResult struct {
 	OK               bool   `json:"ok"`
+	Browser          string `json:"browser"`
 	Version          string `json:"version"`
 	Platform         string `json:"platform"`
 	Path             string `json:"path"`
@@ -28,12 +32,13 @@ func Install(ctx context.Context, manifest Manifest, platform string) (InstallRe
 	if err != nil {
 		return InstallResult{}, err
 	}
-	paths, err := Paths(manifest.Version, platform, entry)
+	paths, err := PathsForManifest(manifest, platform, entry)
 	if err != nil {
 		return InstallResult{}, err
 	}
+	version := manifest.PlatformVersion(entry)
 	if status := Status(paths); status.Installed && status.Executable {
-		return InstallResult{OK: true, Version: manifest.Version, Platform: platform, Path: paths.Executable, CacheDir: paths.CacheRoot, AlreadyInstalled: true}, nil
+		return InstallResult{OK: true, Browser: manifest.BrowserName(), Version: version, Platform: platform, Path: paths.Executable, CacheDir: paths.CacheRoot, AlreadyInstalled: true}, nil
 	}
 	archiveName, err := safeArchiveName(entry.Archive)
 	if err != nil {
@@ -56,7 +61,7 @@ func Install(ctx context.Context, manifest Manifest, platform string) (InstallRe
 		return InstallResult{}, err
 	}
 	extractDir := filepath.Join(tmp, "extract")
-	if err := extractZip(archivePath, extractDir); err != nil {
+	if err := extractArchive(archivePath, archiveName, extractDir); err != nil {
 		return InstallResult{}, fmt.Errorf("extract browser archive: %w", err)
 	}
 	staged := filepath.Join(tmp, "staged")
@@ -103,7 +108,7 @@ func Install(ctx context.Context, manifest Manifest, platform string) (InstallRe
 			return InstallResult{}, err
 		}
 	}
-	return InstallResult{OK: true, Version: manifest.Version, Platform: platform, Path: paths.Executable, CacheDir: paths.CacheRoot}, nil
+	return InstallResult{OK: true, Browser: manifest.BrowserName(), Version: version, Platform: platform, Path: paths.Executable, CacheDir: paths.CacheRoot}, nil
 }
 
 func safeArchiveName(name string) (string, error) {
@@ -174,6 +179,13 @@ func verifySHA256(path, expected string) error {
 	return nil
 }
 
+func extractArchive(archivePath, archiveName, destination string) error {
+	if strings.HasSuffix(archiveName, ".tar.gz") || strings.HasSuffix(archiveName, ".tgz") {
+		return extractTarGz(archivePath, destination)
+	}
+	return extractZip(archivePath, destination)
+}
+
 func extractZip(archivePath, destination string) error {
 	reader, err := zip.OpenReader(archivePath)
 	if err != nil {
@@ -207,6 +219,57 @@ func extractZip(archivePath, destination string) error {
 		}
 	}
 	return nil
+}
+
+func extractTarGz(archivePath, destination string) error {
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		return err
+	}
+	defer gzipReader.Close()
+	reader := tar.NewReader(gzipReader)
+	for {
+		header, err := reader.Next()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		target, err := safeZipPath(destination, header.Name)
+		if err != nil {
+			return err
+		}
+		mode := os.FileMode(header.Mode)
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, mode.Perm()); err != nil {
+				return err
+			}
+		case tar.TypeReg, tar.TypeRegA:
+			if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+				return err
+			}
+			if err := writeZipFile(destination, target, reader, mode); err != nil {
+				return err
+			}
+		case tar.TypeSymlink:
+			if err := safeSymlinkTarget(destination, target, header.Linkname); err != nil {
+				return err
+			}
+			if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+				return err
+			}
+			if err := os.Symlink(header.Linkname, target); err != nil && !os.IsExist(err) {
+				return err
+			}
+		}
+	}
 }
 
 func writeZipFile(destination, path string, source io.Reader, mode os.FileMode) error {

@@ -28,14 +28,15 @@ func newBrowserStatusCommand() *cobra.Command {
 		Short: "Show managed browser status",
 		Args:  noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			manifest, platform, _, paths, err := currentManagedBrowser()
+			manifest, platform, entry, paths, err := currentManagedBrowser()
 			if err != nil {
 				return writeError(cmd, browserErrorCode("browser_status_failed", err), err.Error(), nil)
 			}
 			status := managedbrowser.Status(paths)
 			return writeJSON(cmd, map[string]any{
 				"ok":         true,
-				"version":    manifest.Version,
+				"browser":    manifest.BrowserName(),
+				"version":    manifest.PlatformVersion(entry),
 				"platform":   platform,
 				"cache_dir":  paths.CacheRoot,
 				"path":       paths.Executable,
@@ -54,7 +55,7 @@ func newBrowserPathCommand() *cobra.Command {
 		Short: "Print managed browser path",
 		Args:  noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, _, _, paths, err := currentManagedBrowser()
+			manifest, _, _, paths, err := currentManagedBrowser()
 			if err != nil {
 				return writeError(cmd, browserErrorCode("browser_path_failed", err), err.Error(), nil)
 			}
@@ -65,7 +66,7 @@ func newBrowserPathCommand() *cobra.Command {
 					"cache_dir": paths.CacheRoot,
 				})
 			}
-			return writeJSON(cmd, map[string]any{"ok": true, "path": paths.Executable})
+			return writeJSON(cmd, map[string]any{"ok": true, "browser": manifest.BrowserName(), "path": paths.Executable})
 		},
 	}
 	configureAgentHelp(cmd)
@@ -103,7 +104,7 @@ func currentManagedBrowser() (managedbrowser.Manifest, string, managedbrowser.Pl
 	if err != nil {
 		return managedbrowser.Manifest{}, platform, managedbrowser.Platform{}, managedbrowser.InstallPaths{}, err
 	}
-	paths, err := managedbrowser.Paths(manifest.Version, platform, entry)
+	paths, err := managedbrowser.PathsForManifest(manifest, platform, entry)
 	if err != nil {
 		return managedbrowser.Manifest{}, platform, entry, managedbrowser.InstallPaths{}, err
 	}

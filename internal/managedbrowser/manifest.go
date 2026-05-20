@@ -7,15 +7,17 @@ import (
 	"runtime"
 )
 
-//go:embed browser-manifest.json
+//go:embed browser-manifest.json chrome-browser-manifest.json
 var manifestFS embed.FS
 
 type Manifest struct {
+	Browser   string              `json:"browser,omitempty"`
 	Version   string              `json:"version"`
 	Platforms map[string]Platform `json:"platforms"`
 }
 
 type Platform struct {
+	Version        string `json:"version,omitempty"`
 	Archive        string `json:"archive"`
 	URL            string `json:"url"`
 	SHA256         string `json:"sha256"`
@@ -23,7 +25,15 @@ type Platform struct {
 }
 
 func BundledManifest() (Manifest, error) {
-	body, err := manifestFS.ReadFile("browser-manifest.json")
+	return readManifest("browser-manifest.json")
+}
+
+func ChromeManifest() (Manifest, error) {
+	return readManifest("chrome-browser-manifest.json")
+}
+
+func readManifest(name string) (Manifest, error) {
+	body, err := manifestFS.ReadFile(name)
 	if err != nil {
 		return Manifest{}, err
 	}
@@ -36,6 +46,9 @@ func BundledManifest() (Manifest, error) {
 	}
 	if len(manifest.Platforms) == 0 {
 		return Manifest{}, fmt.Errorf("browser manifest has no platforms")
+	}
+	if manifest.Browser == "" {
+		manifest.Browser = "chrome-for-testing"
 	}
 	return manifest, nil
 }
@@ -65,4 +78,18 @@ func (m Manifest) PlatformEntry(platform string) (Platform, error) {
 		return Platform{}, fmt.Errorf("unsupported managed browser platform: %s", platform)
 	}
 	return entry, nil
+}
+
+func (m Manifest) PlatformVersion(entry Platform) string {
+	if entry.Version != "" {
+		return entry.Version
+	}
+	return m.Version
+}
+
+func (m Manifest) BrowserName() string {
+	if m.Browser != "" {
+		return m.Browser
+	}
+	return "chrome-for-testing"
 }

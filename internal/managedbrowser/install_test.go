@@ -1,7 +1,9 @@
 package managedbrowser
 
 import (
+	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -123,6 +125,41 @@ func TestInstallDownloadsExtractsAndValidatesExecutable(t *testing.T) {
 	}
 	if _, err := os.Stat(result.Path); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestInstallDownloadsExtractsTarGzAndValidatesExecutable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("mode executable checks differ on windows")
+	}
+	root := t.TempDir()
+	t.Setenv(CacheEnv, root)
+	archive := makeTarGz(t, "chrome", "#!/bin/sh\n", 0o755)
+	sum := sha256.Sum256(archive)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(archive)
+	}))
+	defer server.Close()
+
+	result, err := Install(context.Background(), Manifest{
+		Browser: "cloakbrowser",
+		Version: "146.0.7680.177.4",
+		Platforms: map[string]Platform{"linux-x64": {
+			Archive:        "cloakbrowser-linux-x64.tar.gz",
+			URL:            server.URL,
+			SHA256:         hex.EncodeToString(sum[:]),
+			ExecutablePath: "chrome",
+		}},
+	}, "linux-x64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(result.Path); err != nil {
+		t.Fatal(err)
+	}
+	wantDir := filepath.Join(root, "agent-aget", "cloakbrowser", "146.0.7680.177.4", "linux-x64")
+	if filepath.Dir(result.Path) != wantDir {
+		t.Fatalf("install dir = %q, want %q", filepath.Dir(result.Path), wantDir)
 	}
 }
 
@@ -284,6 +321,41 @@ func makeZip(t *testing.T, name, body string) []byte {
 		t.Fatal(err)
 	}
 	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func makeTarGz(t *testing.T, name, body string, mode int64) []byte {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "archive.tar.gz")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gzipWriter := gzip.NewWriter(file)
+	tarWriter := tar.NewWriter(gzipWriter)
+	if err := tarWriter.WriteHeader(&tar.Header{
+		Name: name,
+		Mode: mode,
+		Size: int64(len(body)),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tarWriter.Write([]byte(body)); err != nil {
+		t.Fatal(err)
+	}
+	if err := tarWriter.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gzipWriter.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if err := file.Close(); err != nil {

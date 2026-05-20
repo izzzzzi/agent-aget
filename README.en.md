@@ -7,7 +7,7 @@
 
 Language: English | [Русский](README.md)
 
-`aget` is a browser workflow helper for LLM agents. The CLI starts a managed Chromium-compatible browser, stores local sessions, and returns machine-readable JSON.
+`aget` is a browser workflow helper for LLM agents. The CLI starts managed [CloakBrowser](https://github.com/CloakHQ/CloakBrowser) stealth Chromium, stores local sessions, and returns machine-readable JSON.
 
 ## Install
 
@@ -16,7 +16,7 @@ npm i -g agent-aget
 aget version
 ```
 
-During `npm i -g agent-aget`, the package downloads the native `aget` binary and tries to install pinned Chrome for Testing into the user cache. If the network is unavailable, package installation continues; install the browser later with:
+During `npm i -g agent-aget`, the package downloads the native `aget` binary and tries to install pinned CloakBrowser into the user cache. CloakBrowser is Chromium with source-level fingerprint patches; upstream describes it as a drop-in Playwright replacement for passing bot detection tests. If the network is unavailable, package installation continues; install the browser later with:
 
 ```bash
 aget browser install
@@ -28,8 +28,9 @@ Browser resolution order:
 
 1. `--browser-path`
 2. `AGET_BROWSER_PATH`
-3. managed Chrome for Testing from cache
-4. system Chrome/Chromium
+3. managed CloakBrowser from cache
+4. legacy managed Chrome for Testing from cache, if it was installed by earlier `aget` versions
+5. system Chrome/Chromium
 
 To skip managed browser installation:
 
@@ -165,6 +166,7 @@ OpenCode: Use `aget open`, then `aget page read/click/type/screenshot` with the 
 ## Environment
 
 - `AGET_BROWSER_PATH` - path to a Chromium-compatible browser.
+- `AGET_BROWSER_CACHE_DIR` - cache directory for managed CloakBrowser.
 - `AGET_STATE_DIR` - local state directory for sessions, profiles, and artifacts.
 - `AGENT_AGET_SKIP_DOWNLOAD=1` - skip the native binary download during npm `postinstall` and write a fake executable for smoke tests.
 

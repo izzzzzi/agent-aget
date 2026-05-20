@@ -1,18 +1,25 @@
 package browser
 
 import (
+	"crypto/rand"
 	"fmt"
+	"math/big"
 	"net"
 	"os"
 	"os/exec"
+	"runtime"
+	"strings"
 )
 
 type LaunchOptions struct {
-	BinaryPath  string
-	URL         string
-	UserDataDir string
-	Port        int
-	Headless    bool
+	BinaryPath   string
+	BrowserName  string
+	URL          string
+	UserDataDir  string
+	Port         int
+	Headless     bool
+	Fingerprint  string
+	PlatformName string
 }
 
 type Process struct {
@@ -71,6 +78,13 @@ func buildArgs(options LaunchOptions) []string {
 		"--no-first-run",
 		"--no-default-browser-check",
 	}
+	if strings.EqualFold(options.BrowserName, "cloakbrowser") {
+		args = append(args,
+			"--no-sandbox",
+			"--fingerprint="+cloakFingerprint(options.Fingerprint),
+			"--fingerprint-platform="+cloakPlatformName(options.PlatformName),
+		)
+	}
 	if options.Headless {
 		args = append(args, "--headless=new")
 	}
@@ -78,4 +92,26 @@ func buildArgs(options LaunchOptions) []string {
 		args = append(args, options.URL)
 	}
 	return args
+}
+
+func cloakFingerprint(seed string) string {
+	if seed != "" {
+		return seed
+	}
+	max := big.NewInt(900000)
+	n, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		return "123456"
+	}
+	return fmt.Sprintf("%06d", n.Int64()+100000)
+}
+
+func cloakPlatformName(name string) string {
+	if name != "" {
+		return name
+	}
+	if runtime.GOOS == "darwin" {
+		return "macos"
+	}
+	return "windows"
 }

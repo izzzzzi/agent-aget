@@ -15,7 +15,7 @@ import (
 
 var waitForOpenPage = cdp.WaitForPageURL
 
-var openPageReadyTimeout = 10 * time.Second
+var openPageReadyTimeout = 30 * time.Second
 
 func newOpenCommand() *cobra.Command {
 	var name string
@@ -32,7 +32,7 @@ func newOpenCommand() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			url := args[0]
-			binary, err := browser.ResolveBinary(browserPath)
+			resolved, err := browser.Resolve(browserPath)
 			if err != nil {
 				return writeError(cmd, "browser_not_found", err.Error(), nil)
 			}
@@ -47,7 +47,8 @@ func newOpenCommand() *cobra.Command {
 			}
 
 			process, err := browser.Launch(browser.LaunchOptions{
-				BinaryPath:  binary,
+				BinaryPath:  resolved.Path,
+				BrowserName: resolved.Browser,
 				URL:         url,
 				UserDataDir: filepath.Join(state.ProfilesDir(), sid),
 				Port:        port,
@@ -84,7 +85,7 @@ func newOpenCommand() *cobra.Command {
 				"ok":      true,
 				"sid":     sid,
 				"session": name,
-				"browser": map[string]any{"path": binary, "pid": process.PID, "debug_url": process.DebugURL, "headless": !headful},
+				"browser": map[string]any{"name": resolved.Browser, "path": resolved.Path, "pid": process.PID, "debug_url": process.DebugURL, "headless": !headful},
 				"page":    map[string]any{"url": url},
 				"record":  record,
 				"next_commands": map[string]string{

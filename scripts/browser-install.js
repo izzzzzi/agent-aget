@@ -35,7 +35,12 @@ function platformKey(platform = process.platform, arch = process.arch) {
 function pathsFor(manifest, key = platformKey()) {
   const entry = manifest.platforms[key];
   if (!entry) throw new Error(`unsupported managed browser platform: ${key}`);
-  if (!safePathName(manifest.version)) {
+  const browser = manifest.browser || 'chrome-for-testing';
+  const version = entry.version || manifest.version;
+  if (!safePathName(browser)) {
+    throw new Error('browser install path browser must be a relative path name');
+  }
+  if (!safePathName(version)) {
     throw new Error('browser install path version must be a relative path name');
   }
   if (!safePathName(key)) {
@@ -46,13 +51,15 @@ function pathsFor(manifest, key = platformKey()) {
   const installDir = path.join(
     cacheDir,
     'agent-aget',
-    'chrome-for-testing',
-    manifest.version,
+    browser,
+    version,
     key,
   );
 
   return {
     entry,
+    browser,
+    version,
     cacheDir,
     installDir,
     executable: path.join(installDir, executablePath),
@@ -192,6 +199,19 @@ function extractZip(archivePath, destination) {
   execFileSync('unzip', ['-q', archivePath, '-d', destination], { stdio: 'inherit' });
 }
 
+function extractTarGz(archivePath, destination) {
+  fs.mkdirSync(destination, { recursive: true });
+  execFileSync('tar', ['-xzf', archivePath, '-C', destination], { stdio: 'inherit' });
+}
+
+function extractArchive(archivePath, archiveName, destination) {
+  if (archiveName.endsWith('.tar.gz') || archiveName.endsWith('.tgz')) {
+    extractTarGz(archivePath, destination);
+    return;
+  }
+  extractZip(archivePath, destination);
+}
+
 async function installFromManifest(manifest = null, key = platformKey()) {
   const loadedManifest = manifest || JSON.parse(
     fs.readFileSync(path.join(root, 'browser-manifest.json'), 'utf8'),
@@ -214,7 +234,7 @@ async function installFromManifest(manifest = null, key = platformKey()) {
   try {
     await download(info.entry.url, archivePath);
     verifyChecksum(archivePath, info.entry.sha256);
-    extractZip(archivePath, extractDir);
+    extractArchive(archivePath, archiveName, extractDir);
     fs.renameSync(extractDir, stagedDir);
 
     const stagedExecutable = stagedExecutablePath(info, stagedDir);

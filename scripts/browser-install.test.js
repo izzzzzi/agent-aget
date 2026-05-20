@@ -14,9 +14,11 @@ async function main() {
   try {
     testCacheRootParity();
     testPathsFor();
+    testPathsForCloakBrowser();
     await testInstallRejectsChecksumMismatch();
     await testInstallRejectsUnsafeArchiveName();
     await testInstallPreservesExistingInstallWhenStagedValidationFails();
+    await testInstallExtractsTarGz();
   } finally {
     if (originalCacheDir === undefined) {
       delete process.env.AGET_BROWSER_CACHE_DIR;
@@ -106,6 +108,35 @@ function testPathsFor() {
   }
 }
 
+function testPathsForCloakBrowser() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aget-browser-test-'));
+  process.env.AGET_BROWSER_CACHE_DIR = root;
+
+  try {
+    const manifest = baseManifest({
+      browser: 'cloakbrowser',
+      version: '146.0.7680.177.4',
+      platform: 'darwin-arm64',
+      platformVersion: '145.0.7632.109.2',
+      archive: 'cloakbrowser-darwin-arm64.tar.gz',
+      executable_path: 'Chromium.app/Contents/MacOS/Chromium',
+    });
+
+    const info = installer.pathsFor(manifest, 'darwin-arm64');
+    assert.equal(
+      info.installDir,
+      path.join(root, 'agent-aget', 'cloakbrowser', '145.0.7632.109.2', 'darwin-arm64'),
+    );
+    assert.equal(
+      info.executable,
+      path.join(info.installDir, 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    delete process.env.AGET_BROWSER_CACHE_DIR;
+  }
+}
+
 async function testInstallRejectsChecksumMismatch() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aget-browser-test-'));
   process.env.AGET_BROWSER_CACHE_DIR = root;
@@ -178,6 +209,36 @@ async function testInstallPreservesExistingInstallWhenStagedValidationFails() {
   }
 }
 
+async function testInstallExtractsTarGz() {
+  if (process.platform === 'win32') {
+    return;
+  }
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aget-browser-test-'));
+  process.env.AGET_BROWSER_CACHE_DIR = root;
+  const archivePath = makeTarGz([{ name: 'chrome', body: '#!/bin/sh\n', mode: 0o755 }]);
+  const server = await serveFile(archivePath);
+
+  try {
+    const manifest = baseManifest({
+      browser: 'cloakbrowser',
+      version: '146.0.7680.177.4',
+      archive: 'cloakbrowser-linux-x64.tar.gz',
+      url: server.url,
+      sha256: sha256(archivePath),
+      executable_path: 'chrome',
+    });
+
+    const info = await installer.installFromManifest(manifest, 'linux-x64');
+    assert.equal(info.executable, path.join(root, 'agent-aget', 'cloakbrowser', '146.0.7680.177.4', 'linux-x64', 'chrome'));
+    assert.equal(installer.isExecutable(info.executable), true);
+  } finally {
+    await server.close();
+    fs.rmSync(root, { recursive: true, force: true });
+    delete process.env.AGET_BROWSER_CACHE_DIR;
+  }
+}
+
 function baseManifest(overrides = {}) {
   const platform = overrides.platform || 'linux-x64';
   const entry = {
@@ -191,12 +252,17 @@ function baseManifest(overrides = {}) {
   if (Object.hasOwn(overrides, 'sha256')) entry.sha256 = overrides.sha256;
   if (Object.hasOwn(overrides, 'executable_path')) entry.executable_path = overrides.executable_path;
 
-  return {
+  const manifest = {
+    browser: overrides.browser,
     version: overrides.version || '148.0.7778.98',
     platforms: {
       [platform]: entry,
     },
   };
+  if (overrides.platformVersion) {
+    manifest.platforms[platform].version = overrides.platformVersion;
+  }
+  return manifest;
 }
 
 function makeZip(entries) {
@@ -209,6 +275,19 @@ function makeZip(entries) {
     fs.chmodSync(filePath, entry.mode);
   }
   execFileSync('zip', ['-qr', archivePath, ...entries.map((entry) => entry.name)], { cwd: root });
+  return archivePath;
+}
+
+function makeTarGz(entries) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aget-browser-tar-'));
+  const archivePath = path.join(root, 'archive.tar.gz');
+  for (const entry of entries) {
+    const filePath = path.join(root, entry.name);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, entry.body, { mode: entry.mode });
+    fs.chmodSync(filePath, entry.mode);
+  }
+  execFileSync('tar', ['-czf', archivePath, ...entries.map((entry) => entry.name)], { cwd: root });
   return archivePath;
 }
 

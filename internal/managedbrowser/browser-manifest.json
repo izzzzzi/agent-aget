@@ -1,29 +1,38 @@
 {
-  "version": "148.0.7778.98",
+  "browser": "cloakbrowser",
+  "version": "146.0.7680.177.4",
   "platforms": {
     "darwin-arm64": {
-      "archive": "chrome-mac-arm64.zip",
-      "url": "https://storage.googleapis.com/chrome-for-testing-public/148.0.7778.98/mac-arm64/chrome-mac-arm64.zip",
-      "sha256": "2a01aff962ceea880a5f0055964ff9d85adb2a9fb98fa960fae42beeb20f2364",
-      "executable_path": "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+      "version": "145.0.7632.109.2",
+      "archive": "cloakbrowser-darwin-arm64.tar.gz",
+      "url": "https://github.com/CloakHQ/CloakBrowser/releases/download/chromium-v145.0.7632.109.2/cloakbrowser-darwin-arm64.tar.gz",
+      "sha256": "505582aa1bd3971c577f70e0cbbe016431702bdb693529abfd943b5bd9120c1c",
+      "executable_path": "Chromium.app/Contents/MacOS/Chromium"
     },
     "darwin-x64": {
-      "archive": "chrome-mac-x64.zip",
-      "url": "https://storage.googleapis.com/chrome-for-testing-public/148.0.7778.98/mac-x64/chrome-mac-x64.zip",
-      "sha256": "f857e4c0b5aad671a794ce8d39446c059a0d85a90ff7de2577327a0c74babef0",
-      "executable_path": "chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+      "version": "145.0.7632.109.2",
+      "archive": "cloakbrowser-darwin-x64.tar.gz",
+      "url": "https://github.com/CloakHQ/CloakBrowser/releases/download/chromium-v145.0.7632.109.2/cloakbrowser-darwin-x64.tar.gz",
+      "sha256": "a0a061b1945db55b3bbe95986a82b67803311c0fedabb3946e7ab0172273daac",
+      "executable_path": "Chromium.app/Contents/MacOS/Chromium"
     },
     "linux-x64": {
-      "archive": "chrome-linux64.zip",
-      "url": "https://storage.googleapis.com/chrome-for-testing-public/148.0.7778.98/linux64/chrome-linux64.zip",
-      "sha256": "9d54db6aec137a4b1bda5d903b3751263a8650ac96b59a2a2c7e34e075136d8a",
-      "executable_path": "chrome-linux64/chrome"
+      "archive": "cloakbrowser-linux-x64.tar.gz",
+      "url": "https://github.com/CloakHQ/CloakBrowser/releases/download/chromium-v146.0.7680.177.4/cloakbrowser-linux-x64.tar.gz",
+      "sha256": "5af027faafb1fef9933eb784c094b764706de22a372a2cee84bc117fc4ab537f",
+      "executable_path": "chrome"
+    },
+    "linux-arm64": {
+      "archive": "cloakbrowser-linux-arm64.tar.gz",
+      "url": "https://github.com/CloakHQ/CloakBrowser/releases/download/chromium-v146.0.7680.177.4/cloakbrowser-linux-arm64.tar.gz",
+      "sha256": "8b71ce53b4fd131327331a31fba3835d71882d19bfaabde78dd0f5390bd16f45",
+      "executable_path": "chrome"
     },
     "win32-x64": {
-      "archive": "chrome-win64.zip",
-      "url": "https://storage.googleapis.com/chrome-for-testing-public/148.0.7778.98/win64/chrome-win64.zip",
-      "sha256": "6da2ffc7fcb4cec4b3958e4d9787b2fe9cabf01d612fb48ce035da8d38c7db40",
-      "executable_path": "chrome-win64/chrome.exe"
+      "archive": "cloakbrowser-windows-x64.zip",
+      "url": "https://github.com/CloakHQ/CloakBrowser/releases/download/chromium-v146.0.7680.177.4/cloakbrowser-windows-x64.zip",
+      "sha256": "759670947e041a956a198c2d66be501cc767ae8bdba6e33f9b8be76909c4d829",
+      "executable_path": "chrome.exe"
     }
   }
 }

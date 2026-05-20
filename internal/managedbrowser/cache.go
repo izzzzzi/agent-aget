@@ -33,8 +33,19 @@ func CacheRoot() (string, error) {
 }
 
 func Paths(version, platform string, entry Platform) (InstallPaths, error) {
-	if version == "" || platform == "" || entry.ExecutablePath == "" {
-		return InstallPaths{}, fmt.Errorf("browser install path requires version, platform, and executable path")
+	return paths("chrome-for-testing", version, platform, entry)
+}
+
+func PathsForManifest(manifest Manifest, platform string, entry Platform) (InstallPaths, error) {
+	return paths(manifest.BrowserName(), manifest.PlatformVersion(entry), platform, entry)
+}
+
+func paths(browser, version, platform string, entry Platform) (InstallPaths, error) {
+	if browser == "" || version == "" || platform == "" || entry.ExecutablePath == "" {
+		return InstallPaths{}, fmt.Errorf("browser install path requires browser, version, platform, and executable path")
+	}
+	if !safePathName(browser) {
+		return InstallPaths{}, fmt.Errorf("browser install path browser must be a relative path name")
 	}
 	if !safePathName(version) {
 		return InstallPaths{}, fmt.Errorf("browser install path version must be a relative path name")
@@ -51,7 +62,7 @@ func Paths(version, platform string, entry Platform) (InstallPaths, error) {
 	if err != nil {
 		return InstallPaths{}, err
 	}
-	installDir := filepath.Join(root, "agent-aget", "chrome-for-testing", version, platform)
+	installDir := filepath.Join(root, "agent-aget", browser, version, platform)
 	executablePath := filepath.Join(installDir, executable)
 	if !pathInside(installDir, executablePath) {
 		return InstallPaths{}, fmt.Errorf("browser executable path must stay within install dir")

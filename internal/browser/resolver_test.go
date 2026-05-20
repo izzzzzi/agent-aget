@@ -95,7 +95,9 @@ func TestResolveBinaryUsesManagedBrowserBeforeSystemCandidates(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := managedBrowserPath
-	managedBrowserPath = func() (string, bool) { return managed, true }
+	managedBrowserPath = func() (ResolvedBinary, bool) {
+		return ResolvedBinary{Path: managed, Browser: "chrome-for-testing"}, true
+	}
 	defer func() { managedBrowserPath = old }()
 
 	got, err := ResolveBinary("")
@@ -104,6 +106,85 @@ func TestResolveBinaryUsesManagedBrowserBeforeSystemCandidates(t *testing.T) {
 	}
 	if got != managed {
 		t.Fatalf("ResolveBinary() = %q, want managed browser %q", got, managed)
+	}
+}
+
+func TestResolveBinaryUsesCloakManagedBrowserBeforeChromeFallback(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("mode executable checks differ on windows")
+	}
+	t.Setenv("AGET_BROWSER_PATH", "")
+
+	cloak := filepath.Join(t.TempDir(), "managed-cloak")
+	if err := os.WriteFile(cloak, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	chrome := filepath.Join(t.TempDir(), "managed-chrome")
+	if err := os.WriteFile(chrome, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldPrimary := primaryManagedBrowserPath
+	oldFallback := fallbackManagedBrowserPath
+	primaryManagedBrowserPath = func() (ResolvedBinary, bool) {
+		return ResolvedBinary{Path: cloak, Browser: "cloakbrowser"}, true
+	}
+	fallbackManagedBrowserPath = func() (ResolvedBinary, bool) {
+		return ResolvedBinary{Path: chrome, Browser: "chrome-for-testing"}, true
+	}
+	defer func() {
+		primaryManagedBrowserPath = oldPrimary
+		fallbackManagedBrowserPath = oldFallback
+	}()
+
+	got, err := ResolveBinary("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != cloak {
+		t.Fatalf("ResolveBinary() = %q, want CloakBrowser %q", got, cloak)
+	}
+}
+
+func TestResolveReturnsCloakBrowserMetadataForManagedPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("mode executable checks differ on windows")
+	}
+	t.Setenv("AGET_BROWSER_PATH", "")
+
+	cloak := filepath.Join(t.TempDir(), "managed-cloak")
+	if err := os.WriteFile(cloak, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := managedBrowserPath
+	managedBrowserPath = func() (ResolvedBinary, bool) {
+		return ResolvedBinary{Path: cloak, Browser: "cloakbrowser"}, true
+	}
+	defer func() { managedBrowserPath = old }()
+
+	got, err := Resolve("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Path != cloak || got.Browser != "cloakbrowser" {
+		t.Fatalf("Resolve() = %#v, want CloakBrowser path %q", got, cloak)
+	}
+}
+
+func TestResolveReturnsCloakBrowserMetadataForExplicitCloakPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("executable bits are not meaningful on windows")
+	}
+	exe := filepath.Join(t.TempDir(), "cloakbrowser")
+	if err := os.WriteFile(exe, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Resolve(exe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Path != exe || got.Browser != "cloakbrowser" {
+		t.Fatalf("Resolve() = %#v, want explicit CloakBrowser path %q", got, exe)
 	}
 }
 

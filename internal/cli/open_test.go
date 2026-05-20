@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 )
 
 func TestOpenRequiresURL(t *testing.T) {
@@ -156,6 +157,49 @@ func TestOpenWaitsForPageBeforeReturning(t *testing.T) {
 	}
 	if gotURL != "https://example.com/docs" {
 		t.Fatalf("wait URL = %q, want https://example.com/docs", gotURL)
+	}
+}
+
+func TestOpenGivesManagedBrowserEnoughTimeToBecomeReady(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script fake executable is not portable to windows")
+	}
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	browserPath := writeFakeBrowser(t)
+	var gotTimeout bool
+	restore := replaceOpenPageWaiterForTest(t, func(ctx context.Context, debugURL, url string) error {
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			t.Fatal("open readiness context has no deadline")
+		}
+		gotTimeout = time.Until(deadline) >= 25*time.Second
+		return nil
+	})
+	defer restore()
+
+	stdout, stderr, err := executeForTest("open", "https://example.com/docs", "--browser-path", browserPath)
+	if err != nil {
+		t.Fatalf("open failed: %v stderr=%s", err, stderr)
+	}
+	var got struct {
+		Browser struct {
+			PID int `json:"pid"`
+		} `json:"browser"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if got.Browser.PID > 0 {
+			if process, err := os.FindProcess(got.Browser.PID); err == nil {
+				_ = process.Kill()
+				_, _ = process.Wait()
+			}
+		}
+	})
+
+	if !gotTimeout {
+		t.Fatal("open readiness timeout is too short for managed browser cold starts")
 	}
 }
 

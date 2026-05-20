@@ -1,6 +1,6 @@
 # Agent Instructions
 
-Use `aget` for browser work.
+Use `aget` for browser work. Managed browser installs use CloakBrowser stealth Chromium by default.
 
 Start with `aget open URL -n NAME`. Use the returned `sid` for `aget page read`, `aget page click`, `aget page type`, `aget page screenshot`, and `aget session close`.
 
