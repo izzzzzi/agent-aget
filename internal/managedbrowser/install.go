@@ -185,7 +185,7 @@ func validateDownloadURL(raw string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("download URL must use HTTPS and an allowed host: %s", raw)
+	return fmt.Errorf("download URL must use HTTPS on an allowed host or HTTP on a loopback host: %s", raw)
 }
 
 func allowedDownloadHost(host string) bool {

@@ -151,7 +151,7 @@ function validateDownloadURL(raw) {
   if (parsed.protocol === 'http:' && isLoopbackHost(host)) {
     return parsed;
   }
-  throw new Error(`download URL must use HTTPS and an allowed host: ${raw}`);
+  throw new Error(`download URL must use HTTPS on an allowed host or HTTP on a loopback host: ${raw}`);
 }
 
 function allowedDownloadHost(host) {
