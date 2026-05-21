@@ -68,6 +68,68 @@ func TestInstallRejectsChecksumMismatch(t *testing.T) {
 	}
 }
 
+func TestInstallRejectsInsecureNonLoopbackDownloadURL(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(CacheEnv, root)
+
+	_, err := Install(context.Background(), Manifest{
+		Version: "148.0.7778.98",
+		Platforms: map[string]Platform{"linux-x64": {
+			Archive:        "chrome-linux64.zip",
+			URL:            "http://example.com/chrome.zip",
+			SHA256:         "0",
+			ExecutablePath: "chrome-linux64/chrome",
+		}},
+	}, "linux-x64")
+	if err == nil {
+		t.Fatal("expected insecure download URL error")
+	}
+}
+
+func TestValidateDownloadURLAllowsPinnedHostsAndLoopbackTests(t *testing.T) {
+	allowed := []string{
+		"https://github.com/CloakHQ/CloakBrowser/releases/download/archive.tar.gz",
+		"https://release-assets.githubusercontent.com/github-production-release-asset/file",
+		"https://objects.githubusercontent.com/github-production-release-asset/file",
+		"https://storage.googleapis.com/chrome-for-testing-public/archive.zip",
+		"http://127.0.0.1:12345/archive.zip",
+		"http://localhost:12345/archive.zip",
+	}
+	for _, raw := range allowed {
+		t.Run(raw, func(t *testing.T) {
+			if err := validateDownloadURL(raw); err != nil {
+				t.Fatalf("validateDownloadURL() error = %v", err)
+			}
+		})
+	}
+
+	rejected := []string{
+		"http://example.com/archive.zip",
+		"https://example.com/archive.zip",
+		"ftp://github.com/archive.zip",
+	}
+	for _, raw := range rejected {
+		t.Run(raw, func(t *testing.T) {
+			if err := validateDownloadURL(raw); err == nil {
+				t.Fatal("validateDownloadURL() error = nil, want error")
+			}
+		})
+	}
+}
+
+func TestArchiveEntryModeSanitizesTarHeaderMode(t *testing.T) {
+	mode, err := archiveEntryMode(0o4755)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode != 0o755 {
+		t.Fatalf("mode = %v, want 0755", mode)
+	}
+	if _, err := archiveEntryMode(-1); err == nil {
+		t.Fatal("expected negative mode error")
+	}
+}
+
 func TestInstallCreatesMissingCacheRoot(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "missing-cache-root")
 	t.Setenv(CacheEnv, root)

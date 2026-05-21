@@ -15,6 +15,7 @@ async function main() {
     testCacheRootParity();
     testPathsFor();
     testPathsForCloakBrowser();
+    await testInstallRejectsInsecureNonLoopbackDownloadURL();
     await testInstallRejectsChecksumMismatch();
     await testInstallRejectsUnsafeArchiveName();
     await testInstallPreservesExistingInstallWhenStagedValidationFails();
@@ -130,6 +131,21 @@ function testPathsForCloakBrowser() {
     assert.equal(
       info.executable,
       path.join(info.installDir, 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    delete process.env.AGET_BROWSER_CACHE_DIR;
+  }
+}
+
+async function testInstallRejectsInsecureNonLoopbackDownloadURL() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aget-browser-test-'));
+  process.env.AGET_BROWSER_CACHE_DIR = root;
+
+  try {
+    await assert.rejects(
+      () => installer.installFromManifest(baseManifest({ url: 'http://example.com/archive.zip' }), 'linux-x64'),
+      /download URL/i,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

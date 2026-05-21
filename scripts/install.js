@@ -31,10 +31,18 @@ function writeFakeExecutable(info) {
 
 function download(url, destination) {
   return new Promise((resolve, reject) => {
-    const request = https.get(url, (response) => {
+    let parsed;
+    try {
+      parsed = validateDownloadURL(url);
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    const request = https.get(parsed, (response) => {
       if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
         response.resume();
-        download(response.headers.location, destination).then(resolve, reject);
+        const next = new URL(response.headers.location, parsed);
+        download(next.toString(), destination).then(resolve, reject);
         return;
       }
 
@@ -52,6 +60,18 @@ function download(url, destination) {
 
     request.on('error', reject);
   });
+}
+
+function validateDownloadURL(raw) {
+  const parsed = new URL(raw);
+  const host = parsed.hostname.toLowerCase();
+  if (
+    parsed.protocol === 'https:' &&
+    ['github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'].includes(host)
+  ) {
+    return parsed;
+  }
+  throw new Error(`download URL must use HTTPS and an allowed host: ${raw}`);
 }
 
 function checksumFor(checksums, archive) {

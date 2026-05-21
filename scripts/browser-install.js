@@ -110,11 +110,19 @@ function isExecutable(file) {
 
 function download(url, destination) {
   return new Promise((resolve, reject) => {
-    const client = url.startsWith('http://') ? http : https;
-    const request = client.get(url, (response) => {
+    let parsed;
+    try {
+      parsed = validateDownloadURL(url);
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    const client = parsed.protocol === 'http:' ? http : https;
+    const request = client.get(parsed, (response) => {
       if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
         response.resume();
-        download(response.headers.location, destination).then(resolve, reject);
+        const next = new URL(response.headers.location, parsed);
+        download(next.toString(), destination).then(resolve, reject);
         return;
       }
 
@@ -132,6 +140,31 @@ function download(url, destination) {
 
     request.on('error', reject);
   });
+}
+
+function validateDownloadURL(raw) {
+  const parsed = new URL(raw);
+  const host = parsed.hostname.toLowerCase();
+  if (parsed.protocol === 'https:' && allowedDownloadHost(host)) {
+    return parsed;
+  }
+  if (parsed.protocol === 'http:' && isLoopbackHost(host)) {
+    return parsed;
+  }
+  throw new Error(`download URL must use HTTPS and an allowed host: ${raw}`);
+}
+
+function allowedDownloadHost(host) {
+  return [
+    'github.com',
+    'release-assets.githubusercontent.com',
+    'objects.githubusercontent.com',
+    'storage.googleapis.com',
+  ].includes(host);
+}
+
+function isLoopbackHost(host) {
+  return host === '127.0.0.1' || host === '::1' || host === 'localhost';
 }
 
 function stagedExecutablePath(info, stagedDir) {

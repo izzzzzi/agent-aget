@@ -21,7 +21,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.22"
+          go-version: "1.26.3"
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -31,6 +31,18 @@ jobs:
 
       - name: Verify npm version matches tag
         run: 'test "v$(node -p "require(''./package.json'').version")" = "$GITHUB_REF_NAME"'
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Vulnerability check
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+      - name: Check release artifact contract
+        run: npm run release:contract
 
       - name: Release binaries
         uses: goreleaser/goreleaser-action@v7

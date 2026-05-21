@@ -16,7 +16,7 @@ npm i -g agent-aget
 aget version
 ```
 
-During `npm i -g agent-aget`, the package downloads the native `aget` binary and tries to install pinned CloakBrowser into the user cache. CloakBrowser is Chromium with source-level fingerprint patches; upstream describes it as a drop-in Playwright replacement for passing bot detection tests. If the network is unavailable, package installation continues; install the browser later with:
+During `npm i -g agent-aget`, the package downloads the native `aget` binary and tries to install pinned CloakBrowser into the user cache. [Upstream CloakBrowser](https://github.com/CloakHQ/CloakBrowser) describes itself as: "Stealth Chromium that passes every bot detection test. Drop-in Playwright replacement with source-level fingerprint patches. 30/30 tests passed." If the network is unavailable, package installation continues; install the browser later with:
 
 ```bash
 aget browser install

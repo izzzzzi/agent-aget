@@ -17,7 +17,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.22"
+          go-version: "1.26.3"
 
       - name: Check formatting
         run: test -z "$(gofmt -l .)"
@@ -38,7 +38,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.22"
+          go-version: "1.26.3"
 
       - name: Race test
         run: go test -race ./...
@@ -53,7 +53,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.22"
+          go-version: "1.26.3"
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -70,6 +70,21 @@ jobs:
 
       - name: Check release artifact contract
         run: npm run release:contract
+
+  vulncheck:
+    name: Vulnerability Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.3"
+
+      - name: Govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   npm-smoke:
     name: npm Smoke

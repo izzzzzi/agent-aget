@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -138,11 +139,17 @@ func validateExecutable(path string) error {
 }
 
 func download(ctx context.Context, url, destination string) error {
+	if err := validateDownloadURL(url); err != nil {
+		return err
+	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
-	response, err := http.DefaultClient.Do(request)
+	client := &http.Client{CheckRedirect: func(request *http.Request, via []*http.Request) error {
+		return validateDownloadURL(request.URL.String())
+	}}
+	response, err := client.Do(request)
 	if err != nil {
 		return err
 	}
@@ -160,6 +167,38 @@ func download(ctx context.Context, url, destination string) error {
 	defer file.Close()
 	_, err = io.Copy(file, response.Body)
 	return err
+}
+
+func validateDownloadURL(raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return err
+	}
+	host := strings.ToLower(parsed.Hostname())
+	switch parsed.Scheme {
+	case "https":
+		if allowedDownloadHost(host) {
+			return nil
+		}
+	case "http":
+		if isLoopbackHost(host) {
+			return nil
+		}
+	}
+	return fmt.Errorf("download URL must use HTTPS and an allowed host: %s", raw)
+}
+
+func allowedDownloadHost(host string) bool {
+	switch host {
+	case "github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com", "storage.googleapis.com":
+		return true
+	default:
+		return false
+	}
+}
+
+func isLoopbackHost(host string) bool {
+	return host == "127.0.0.1" || host == "::1" || host == "localhost"
 }
 
 func verifySHA256(path, expected string) error {
@@ -245,7 +284,10 @@ func extractTarGz(archivePath, destination string) error {
 		if err != nil {
 			return err
 		}
-		mode := os.FileMode(header.Mode)
+		mode, err := archiveEntryMode(header.Mode)
+		if err != nil {
+			return err
+		}
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(target, mode.Perm()); err != nil {
@@ -270,6 +312,13 @@ func extractTarGz(archivePath, destination string) error {
 			}
 		}
 	}
+}
+
+func archiveEntryMode(mode int64) (os.FileMode, error) {
+	if mode < 0 {
+		return 0, fmt.Errorf("archive entry mode must not be negative")
+	}
+	return os.FileMode(mode & 0o777), nil
 }
 
 func writeZipFile(destination, path string, source io.Reader, mode os.FileMode) error {
