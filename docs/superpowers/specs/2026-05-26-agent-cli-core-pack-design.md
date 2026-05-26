@@ -1,0 +1,250 @@
+# Agent CLI Core Pack Design
+
+Date: 2026-05-26
+
+## Context
+
+`aget` is a browser workflow CLI for LLM agents. It launches managed CloakBrowser, stores local browser sessions, and returns machine-readable JSON for commands such as `open`, `page read`, `page click`, `page type`, `page screenshot`, and `session close`.
+
+Research into Webwright, Vercel `agent-browser`, Browser Use CLI, Stagehand, Playwright MCP, and Browserless suggests that the strongest near-term direction is not building an autonomous web agent inside `aget`. The strongest direction is to make `aget` a better terminal-native browser control surface for coding agents such as Codex, Claude Code, and OpenCode.
+
+The v0.2 goal is an "Agent CLI Core Pack": improve the action surface, observability, and setup diagnostics while preserving the current JSON contract and external-agent model.
+
+## Goals
+
+- Let agents interact with page elements through stable-enough refs instead of guessing CSS selectors.
+- Add the minimum browser actions expected by coding agents: fill, press, wait, scroll, get, and batch.
+- Keep commands deterministic and machine-readable.
+- Keep `aget` LLM-provider agnostic. No API keys, no hidden agent loop, and no natural-language action planner in this milestone.
+- Preserve backward compatibility for existing `open`, `page read`, `page click`, `page type`, `page screenshot`, and `session close` flows.
+- Improve install and runtime diagnostics through `aget doctor`.
+
+## Non-Goals
+
+- Do not clone Webwright's full task-runner loop in this milestone.
+- Do not add model-backed extraction or self-healing actions.
+- Do not add cloud browser orchestration, proxy rotation, captcha solving, or account/profile management.
+- Do not promise that element refs survive arbitrary DOM rerenders or navigation.
+- Do not replace CSS selectors. Refs augment selectors.
+
+## User-Facing Commands
+
+### `aget page snapshot`
+
+Returns a structured page snapshot designed for LLM agents.
+
+Example:
+
+```bash
+aget page snapshot -s SID
+```
+
+Response shape:
+
+```json
+{
+  "ok": true,
+  "sid": "SID",
+  "url": "https://example.com",
+  "title": "Example",
+  "elements": [
+    {
+      "ref": "@e1",
+      "kind": "button",
+      "text": "Submit",
+      "selector": "button[type=submit]",
+      "visible": true,
+      "enabled": true
+    }
+  ],
+  "next_commands": [
+    "aget page click -s SID --ref @e1"
+  ]
+}
+```
+
+The first implementation can derive snapshot data from the same CDP read path used by `page read`, extended with refs and action-oriented metadata.
+
+### Ref-Aware Actions
+
+Existing selector-based commands remain valid. New commands and existing actions accept refs where useful.
+
+```bash
+aget page click -s SID --ref @e2
+aget page fill -s SID --ref @i1 --text "email@example.com"
+aget page fill -s SID --selector "input[name=email]" --text "email@example.com"
+aget page press -s SID --key Enter
+aget page scroll -s SID --direction down --px 800
+```
+
+`page type` keeps its current behavior. `page fill` clears an input-like element before entering text. `page press` sends keyboard input to the currently focused element or page.
+
+### `aget page wait`
+
+Waits for a page condition.
+
+```bash
+aget page wait -s SID --selector "#ready"
+aget page wait -s SID --text "Success"
+aget page wait -s SID --url "**/dashboard"
+aget page wait -s SID --load networkidle
+```
+
+Exactly one wait condition should be required per invocation. The command returns `ok: true` if the condition is met before timeout and a structured error otherwise.
+
+### `aget page get`
+
+Returns focused page data.
+
+```bash
+aget page get -s SID url
+aget page get -s SID title
+aget page get -s SID text --ref @e2
+aget page get -s SID html --selector "main"
+aget page get -s SID value --ref @i1
+```
+
+The initial set is `url`, `title`, `text`, `html`, and `value`.
+
+### `aget batch`
+
+Executes multiple page commands in one invocation.
+
+```bash
+aget batch -s SID --stdin < commands.json
+```
+
+Input:
+
+```json
+[
+  {"cmd": "wait", "text": "Login"},
+  {"cmd": "fill", "ref": "@i1", "text": "user@example.com"},
+  {"cmd": "press", "key": "Enter"},
+  {"cmd": "snapshot"}
+]
+```
+
+Output:
+
+```json
+{
+  "ok": false,
+  "sid": "SID",
+  "results": [
+    {"ok": true, "cmd": "wait"},
+    {"ok": true, "cmd": "fill"}
+  ],
+  "failed_index": 2,
+  "error": {
+    "code": "page_action_failed",
+    "message": "..."
+  }
+}
+```
+
+Batch stops at the first failure. A later milestone can add `--continue-on-error` if needed.
+
+### `aget doctor`
+
+Checks local installation and runtime readiness.
+
+Initial checks:
+
+- `aget` binary can run.
+- state and artifact directories are writable.
+- browser resolution returns a browser path or a clear install instruction.
+- managed CloakBrowser status is readable.
+- browser can launch.
+- CDP connection can be established.
+- a simple page can be opened and read.
+- screenshot capture works.
+
+The command returns JSON with per-check status and suggested remediation.
+
+## Ref Semantics
+
+Refs are action handles generated by `page snapshot`. They are intended to be convenient for immediate follow-up actions. They are not durable identifiers across arbitrary page navigation or heavy rerenders.
+
+Implementation should prefer deterministic selectors when available. If the driver can support a stronger runtime handle later, the external contract does not need to change.
+
+Invalid or stale refs return a structured `ref_not_found` or `ref_stale` error with a hint to run `aget page snapshot -s SID` again.
+
+## JSON Contract
+
+All operational commands continue to print one JSON object to stdout. Errors continue to use structured codes and details.
+
+New commands should include useful `next_commands` where it helps an LLM choose the next step. Sensitive input values must not be echoed back. Existing `text_len` behavior is preferred for commands that accept private text.
+
+## Architecture
+
+### CLI Layer
+
+Extend `internal/cli/page.go` with new subcommands and argument validation. Shared page command setup should continue using `lookupSession`, `pageOperationContext`, and `newChromeDPDriver`.
+
+Add a root-level `batch` command for multi-command execution and a root-level `doctor` command for diagnostics.
+
+### Page Service Layer
+
+Extend `internal/page.Service` with methods for:
+
+- `Snapshot`
+- `Fill`
+- `Press`
+- `Wait`
+- `Scroll`
+- `Get`
+
+Keep this layer thin and focused on converting driver responses into stable CLI JSON payloads.
+
+### CDP Driver Layer
+
+Extend `internal/cdp.Driver` with the browser primitives needed by the service layer. Implement them in `internal/cdp/chromedp.go` using existing chromedp patterns.
+
+The first snapshot implementation can use JavaScript evaluation to collect interactive elements, accessible labels, visibility, enabled state, and candidate selectors. This avoids introducing a new dependency while keeping the output shaped for agents.
+
+### Doctor Layer
+
+Add a small diagnostics package or keep the first version in `internal/cli/doctor.go` if the logic remains simple. The command should avoid destructive operations and should not download browsers unless a future explicit `--repair` flag is added.
+
+## Error Handling
+
+- Missing `sid`: existing `invalid_args`.
+- Missing selector/ref where required: `invalid_args`.
+- Both selector and ref supplied: `invalid_args`.
+- Ref cannot be resolved: `ref_not_found`.
+- Wait timeout: `page_wait_timeout`.
+- CDP connection failure: existing `page_connect_failed`.
+- Action failure: existing `page_action_failed` unless a more specific code is useful.
+- Doctor failed check: command can still return `ok: false` with a `checks` array instead of aborting at the first failed check.
+
+## Testing
+
+Add focused unit tests for:
+
+- CLI validation for each new command.
+- JSON response shape for snapshot, get, batch, and doctor.
+- Ref resolution behavior, including missing refs.
+- Batch stops on first failure.
+- Doctor reports check failures without panicking.
+
+Add service/driver tests where existing fakes make that practical. Browser integration tests should cover at least:
+
+- snapshot returns clickable/input refs for a simple test page;
+- click by ref works;
+- fill by ref clears and enters text;
+- press submits or triggers a key handler;
+- wait by text succeeds and times out predictably;
+- scroll changes page position;
+- get url/title/text/value returns expected values.
+
+## Release Notes
+
+Document v0.2 as a CLI usability upgrade for coding agents:
+
+- agent-friendly page snapshots with refs;
+- ref-aware click/fill actions;
+- wait, press, scroll, get, and batch;
+- install/runtime diagnostics via doctor.
+
+The docs should explicitly position `aget` as a stealth browser control CLI for external agents, not as a full autonomous browser-agent framework.

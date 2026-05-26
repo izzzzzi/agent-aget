@@ -1,6 +1,10 @@
 dist/
 native/
 node_modules/
-docs/superpowers/
+docs/superpowers/*
+!docs/superpowers/specs/
+!docs/superpowers/specs/**
+!docs/superpowers/plans/
+!docs/superpowers/plans/**
 .DS_Store
 coverage.out
