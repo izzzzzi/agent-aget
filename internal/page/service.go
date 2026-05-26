@@ -311,8 +311,8 @@ func snapshotElements(elements []cdp.Element) []snapshot.Element {
 
 func nextCommands(sid string, elements []cdp.Element) []string {
 	commands := []string{
-		"aget page get -s " + sid + " --kind url",
-		"aget page get -s " + sid + " --kind title",
+		"aget page get -s " + sid + " url",
+		"aget page get -s " + sid + " title",
 	}
 	for _, element := range elements {
 		switch {
