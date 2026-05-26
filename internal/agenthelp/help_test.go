@@ -26,6 +26,15 @@ func TestRootHelpPayload(t *testing.T) {
 	}
 }
 
+func TestRootHelpIncludesAgentCoreCommands(t *testing.T) {
+	commands := RootHelp().Commands
+	for _, key := range []string{"page_snapshot", "page_fill", "page_wait", "page_get", "batch", "doctor"} {
+		if commands[key] == "" {
+			t.Fatalf("command %s missing from root help: %#v", key, commands)
+		}
+	}
+}
+
 func TestGroupHelpPayload(t *testing.T) {
 	payload, ok := GroupHelp("page")
 	if !ok {
@@ -37,6 +46,18 @@ func TestGroupHelpPayload(t *testing.T) {
 	for _, key := range []string{"read", "click", "type", "screenshot"} {
 		if payload.Commands[key] == "" {
 			t.Fatalf("Commands[%q] missing", key)
+		}
+	}
+}
+
+func TestPageHelpIncludesRefWorkflow(t *testing.T) {
+	payload, ok := GroupHelp("page")
+	if !ok {
+		t.Fatal("page help missing")
+	}
+	for _, key := range []string{"snapshot", "click_ref", "fill", "press", "wait", "scroll", "get"} {
+		if payload.Commands[key] == "" {
+			t.Fatalf("command %s missing from page help: %#v", key, payload.Commands)
 		}
 	}
 }
