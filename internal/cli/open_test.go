@@ -103,9 +103,13 @@ func TestOpenReturnsCommandMapAndSessionName(t *testing.T) {
 	}
 
 	want := map[string]string{
+		"snapshot":   "aget page snapshot -s " + got.SID,
 		"read":       "aget page read -s " + got.SID,
-		"click":      "aget page click -s " + got.SID + " --selector CSS",
-		"type":       "aget page type -s " + got.SID + " --selector CSS --text TEXT",
+		"click_ref":  "aget page click -s " + got.SID + " --ref REF",
+		"fill_ref":   "aget page fill -s " + got.SID + " --ref REF --text TEXT",
+		"wait":       "aget page wait -s " + got.SID + " --text TEXT",
+		"get":        "aget page get -s " + got.SID + " text --ref REF",
+		"batch":      "aget batch -s " + got.SID + " --stdin",
 		"screenshot": "aget page screenshot -s " + got.SID,
 		"close":      "aget session close -s " + got.SID,
 	}

@@ -89,7 +89,13 @@ func newOpenCommand() *cobra.Command {
 				"page":    map[string]any{"url": url},
 				"record":  record,
 				"next_commands": map[string]string{
+					"snapshot":   "aget page snapshot -s " + sid,
 					"read":       "aget page read -s " + sid,
+					"click_ref":  "aget page click -s " + sid + " --ref REF",
+					"fill_ref":   "aget page fill -s " + sid + " --ref REF --text TEXT",
+					"wait":       "aget page wait -s " + sid + " --text TEXT",
+					"get":        "aget page get -s " + sid + " text --ref REF",
+					"batch":      "aget batch -s " + sid + " --stdin",
 					"click":      "aget page click -s " + sid + " --selector CSS",
 					"type":       "aget page type -s " + sid + " --selector CSS --text TEXT",
 					"screenshot": "aget page screenshot -s " + sid,
