@@ -317,7 +317,7 @@ func nextCommands(sid string, elements []cdp.Element) []string {
 	for _, element := range elements {
 		switch {
 		case isInputKind(element.Kind):
-			commands = append(commands, "aget page fill -s "+sid+" --ref "+element.Ref+" --text <text>")
+			commands = append(commands, "aget page fill -s "+sid+" --ref "+element.Ref+" --text TEXT")
 		default:
 			commands = append(commands, "aget page click -s "+sid+" --ref "+element.Ref)
 		}

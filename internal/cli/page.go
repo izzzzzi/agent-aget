@@ -384,6 +384,9 @@ func newPageGetCommand() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			kind := args[0]
+			if !validGetKind(kind) {
+				return writeInvalidArgs(cmd, "unsupported get kind "+kind)
+			}
 			needsTarget := kind == "text" || kind == "html" || kind == "value"
 			if needsTarget {
 				if err := validateSelectorOrRef(cmd, selector, ref); err != nil {
@@ -503,6 +506,15 @@ func countNonEmpty(values ...string) int {
 		}
 	}
 	return count
+}
+
+func validGetKind(kind string) bool {
+	switch kind {
+	case "url", "title", "text", "html", "value":
+		return true
+	default:
+		return false
+	}
 }
 
 func lookupSession(cmd *cobra.Command, sid string) (sessionstore.Record, error) {

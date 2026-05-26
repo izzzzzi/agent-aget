@@ -291,6 +291,18 @@ func TestPageGetURLDoesNotRequireTarget(t *testing.T) {
 	}
 }
 
+func TestPageGetRejectsUnsupportedKindBeforeSessionLookup(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	stdout, stderr, err := executeForTest("page", "get", "-s", "missing", "bogus")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	assertInvalidArgsJSON(t, stderr)
+}
+
 func saveTestSession(t *testing.T, sid, debugURL string) {
 	t.Helper()
 	now := time.Now().UTC()

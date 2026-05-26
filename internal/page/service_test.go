@@ -182,6 +182,9 @@ func TestSnapshotAssignsRefsAndNextCommands(t *testing.T) {
 	if got.NextCommands[0] != "aget page get -s abc12345 url" {
 		t.Fatalf("first next command = %q", got.NextCommands[0])
 	}
+	if got.NextCommands[3] != "aget page fill -s abc12345 --ref @i1 --text TEXT" {
+		t.Fatalf("fill next command = %q", got.NextCommands[3])
+	}
 	if resolver.saved.SID != "abc12345" || len(resolver.saved.Elements) != 4 {
 		t.Fatalf("saved record = %#v", resolver.saved)
 	}
