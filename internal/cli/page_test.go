@@ -211,6 +211,10 @@ func (d *recordingDriver) Read(context.Context) (cdp.PageState, error) {
 	return cdp.PageState{}, errors.New("unexpected read")
 }
 
+func (d *recordingDriver) Snapshot(context.Context) (cdp.SnapshotState, error) {
+	return cdp.SnapshotState{}, errors.New("unexpected snapshot")
+}
+
 func (d *recordingDriver) Click(_ context.Context, selector string) error {
 	d.clicked = selector
 	return nil
@@ -220,6 +224,26 @@ func (d *recordingDriver) Type(_ context.Context, selector, text string) error {
 	d.typedSelector = selector
 	d.typedText = text
 	return nil
+}
+
+func (d *recordingDriver) Fill(context.Context, string, string) error {
+	return errors.New("unexpected fill")
+}
+
+func (d *recordingDriver) Press(context.Context, string) error {
+	return errors.New("unexpected press")
+}
+
+func (d *recordingDriver) Scroll(context.Context, string, int) error {
+	return errors.New("unexpected scroll")
+}
+
+func (d *recordingDriver) Wait(context.Context, cdp.WaitOptions) error {
+	return errors.New("unexpected wait")
+}
+
+func (d *recordingDriver) Get(context.Context, cdp.GetOptions) (string, error) {
+	return "", errors.New("unexpected get")
 }
 
 func (d *recordingDriver) Screenshot(context.Context, string) error {
@@ -241,12 +265,36 @@ func (d *blockingDriver) Read(ctx context.Context) (cdp.PageState, error) {
 	return cdp.PageState{}, ctx.Err()
 }
 
+func (d *blockingDriver) Snapshot(context.Context) (cdp.SnapshotState, error) {
+	return cdp.SnapshotState{}, errors.New("unexpected snapshot")
+}
+
 func (d *blockingDriver) Click(context.Context, string) error {
 	return errors.New("unexpected click")
 }
 
 func (d *blockingDriver) Type(context.Context, string, string) error {
 	return errors.New("unexpected type")
+}
+
+func (d *blockingDriver) Fill(context.Context, string, string) error {
+	return errors.New("unexpected fill")
+}
+
+func (d *blockingDriver) Press(context.Context, string) error {
+	return errors.New("unexpected press")
+}
+
+func (d *blockingDriver) Scroll(context.Context, string, int) error {
+	return errors.New("unexpected scroll")
+}
+
+func (d *blockingDriver) Wait(context.Context, cdp.WaitOptions) error {
+	return errors.New("unexpected wait")
+}
+
+func (d *blockingDriver) Get(context.Context, cdp.GetOptions) (string, error) {
+	return "", errors.New("unexpected get")
 }
 
 func (d *blockingDriver) Screenshot(context.Context, string) error {
