@@ -235,9 +235,20 @@ func snapshotScript() string {
 	    if (tag === 'input' || tag === 'textarea' || tag === 'select') return 'input';
 	    return role || tag;
 	  };
-	  const textFor = (el) => (
-	    el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('placeholder') || ''
-	  ).trim().slice(0, 200);
+	  const textFor = (el) => {
+	    const tag = (el.tagName || '').toLowerCase();
+	    if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+	      return (
+	        el.getAttribute('aria-label') ||
+	        el.getAttribute('placeholder') ||
+	        el.getAttribute('name') ||
+	        ''
+	      ).trim().slice(0, 200);
+	    }
+	    return (
+	      el.innerText || el.getAttribute('aria-label') || el.getAttribute('placeholder') || ''
+	    ).trim().slice(0, 200);
+	  };
 	  const candidates = Array.from(document.querySelectorAll('a,button,input,textarea,select,[role=button],[role=link],[tabindex]'));
 	  return JSON.stringify(candidates.slice(0, 200).map((el, index) => ({
 	    ref: '@e' + (index + 1),

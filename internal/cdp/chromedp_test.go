@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -274,6 +275,34 @@ func TestSnapshotSelectorsUseEscapedUniqueShortcuts(t *testing.T) {
 		"Quote": `[data-testid="quote\"button"]`,
 		"Email": `input[name="user.email"]`,
 	})
+}
+
+func TestSnapshotDoesNotExposeInputValues(t *testing.T) {
+	elements := snapshotElementsForHTML(t, `<!doctype html>
+<html><head><title>selectors</title></head><body>
+  <input name="email" value="secret@example.com" placeholder="Email">
+  <input name="token" type="password" value="super-secret-token" aria-label="API token">
+  <textarea name="notes" placeholder="Notes">private notes</textarea>
+</body></html>`)
+
+	seen := map[string]Element{}
+	for _, element := range elements {
+		seen[element.Name] = element
+		if strings.Contains(element.Text, "secret@example.com") ||
+			strings.Contains(element.Text, "super-secret-token") ||
+			strings.Contains(element.Text, "private notes") {
+			t.Fatalf("snapshot leaked input value in %#v", element)
+		}
+	}
+	if seen["email"].Text != "Email" {
+		t.Fatalf("email text = %q, want placeholder", seen["email"].Text)
+	}
+	if seen["token"].Text != "API token" {
+		t.Fatalf("token text = %q, want aria-label", seen["token"].Text)
+	}
+	if seen["notes"].Text != "Notes" {
+		t.Fatalf("notes text = %q, want placeholder", seen["notes"].Text)
+	}
 }
 
 func TestCallContextPreservesCallDeadline(t *testing.T) {
