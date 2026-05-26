@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -160,6 +161,125 @@ func TestPageReadUsesCommandTimeout(t *testing.T) {
 	}
 }
 
+func TestPageSnapshotSavesRefs(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{snapshot: cdp.SnapshotState{
+		URL:   "https://example.com",
+		Title: "Example",
+		Elements: []cdp.Element{
+			{Kind: "button", Text: "Submit", Selector: "button[type=submit]", Visible: true, Enabled: true},
+		},
+	}}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	stdout, stderr, err := executeForTest("page", "snapshot", "-s", "abc12345")
+	if err != nil {
+		t.Fatalf("page snapshot failed: %v stderr=%s", err, stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	elements := got["elements"].([]any)
+	first := elements[0].(map[string]any)
+	if first["ref"] != "@e1" {
+		t.Fatalf("first ref = %v", first["ref"])
+	}
+}
+
+func TestPageClickByRefUsesSavedSnapshot(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{snapshot: cdp.SnapshotState{
+		URL: "https://example.com",
+		Elements: []cdp.Element{
+			{Kind: "button", Selector: "button[type=submit]", Visible: true, Enabled: true},
+		},
+	}}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	if _, stderr, err := executeForTest("page", "snapshot", "-s", "abc12345"); err != nil {
+		t.Fatalf("snapshot failed: %v stderr=%s", err, stderr)
+	}
+	if _, stderr, err := executeForTest("page", "click", "-s", "abc12345", "--ref", "@e1"); err != nil {
+		t.Fatalf("click by ref failed: %v stderr=%s", err, stderr)
+	}
+	if driver.clicked != "button[type=submit]" {
+		t.Fatalf("clicked = %q", driver.clicked)
+	}
+}
+
+func TestPageClickRejectsSelectorAndRefTogether(t *testing.T) {
+	stdout, stderr, err := executeForTest("page", "click", "-s", "abc12345", "--selector", "button", "--ref", "@e1")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	assertInvalidArgsJSON(t, stderr)
+}
+
+func TestPageFillDoesNotEchoText(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	stdout, stderr, err := executeForTest("page", "fill", "-s", "abc12345", "--selector", "input[name=email]", "--text", "secret@example.com")
+	if err != nil {
+		t.Fatalf("fill failed: %v stderr=%s", err, stderr)
+	}
+	if strings.Contains(stdout, "secret@example.com") {
+		t.Fatalf("stdout leaked text: %s", stdout)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["text_len"] != float64(18) {
+		t.Fatalf("text_len = %v", got["text_len"])
+	}
+	if driver.filledSelector != "input[name=email]" || driver.filledText != "secret@example.com" {
+		t.Fatalf("filled selector/text = %q/%q", driver.filledSelector, driver.filledText)
+	}
+}
+
+func TestPageWaitRequiresExactlyOneCondition(t *testing.T) {
+	stdout, stderr, err := executeForTest("page", "wait", "-s", "abc12345", "--selector", "#ready", "--text", "Ready")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	assertInvalidArgsJSON(t, stderr)
+}
+
+func TestPageGetURLDoesNotRequireTarget(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{getValue: "https://example.com"}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	stdout, stderr, err := executeForTest("page", "get", "-s", "abc12345", "url")
+	if err != nil {
+		t.Fatalf("get url failed: %v stderr=%s", err, stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["value"] != "https://example.com" {
+		t.Fatalf("value = %v", got["value"])
+	}
+}
+
 func saveTestSession(t *testing.T, sid, debugURL string) {
 	t.Helper()
 	now := time.Now().UTC()
@@ -200,11 +320,20 @@ func replacePageCommandTimeoutForTest(timeout time.Duration) func() {
 }
 
 type recordingDriver struct {
-	debugURL      string
-	clicked       string
-	typedSelector string
-	typedText     string
-	closed        bool
+	debugURL       string
+	snapshot       cdp.SnapshotState
+	clicked        string
+	typedSelector  string
+	typedText      string
+	filledSelector string
+	filledText     string
+	pressedKey     string
+	scrolledDir    string
+	scrolledPixels int
+	waitOptions    cdp.WaitOptions
+	getOptions     cdp.GetOptions
+	getValue       string
+	closed         bool
 }
 
 func (d *recordingDriver) Read(context.Context) (cdp.PageState, error) {
@@ -212,7 +341,7 @@ func (d *recordingDriver) Read(context.Context) (cdp.PageState, error) {
 }
 
 func (d *recordingDriver) Snapshot(context.Context) (cdp.SnapshotState, error) {
-	return cdp.SnapshotState{}, errors.New("unexpected snapshot")
+	return d.snapshot, nil
 }
 
 func (d *recordingDriver) Click(_ context.Context, selector string) error {
@@ -226,24 +355,31 @@ func (d *recordingDriver) Type(_ context.Context, selector, text string) error {
 	return nil
 }
 
-func (d *recordingDriver) Fill(context.Context, string, string) error {
-	return errors.New("unexpected fill")
+func (d *recordingDriver) Fill(_ context.Context, selector, text string) error {
+	d.filledSelector = selector
+	d.filledText = text
+	return nil
 }
 
-func (d *recordingDriver) Press(context.Context, string) error {
-	return errors.New("unexpected press")
+func (d *recordingDriver) Press(_ context.Context, key string) error {
+	d.pressedKey = key
+	return nil
 }
 
-func (d *recordingDriver) Scroll(context.Context, string, int) error {
-	return errors.New("unexpected scroll")
+func (d *recordingDriver) Scroll(_ context.Context, direction string, pixels int) error {
+	d.scrolledDir = direction
+	d.scrolledPixels = pixels
+	return nil
 }
 
-func (d *recordingDriver) Wait(context.Context, cdp.WaitOptions) error {
-	return errors.New("unexpected wait")
+func (d *recordingDriver) Wait(_ context.Context, options cdp.WaitOptions) error {
+	d.waitOptions = options
+	return nil
 }
 
-func (d *recordingDriver) Get(context.Context, cdp.GetOptions) (string, error) {
-	return "", errors.New("unexpected get")
+func (d *recordingDriver) Get(_ context.Context, options cdp.GetOptions) (string, error) {
+	d.getOptions = options
+	return d.getValue, nil
 }
 
 func (d *recordingDriver) Screenshot(context.Context, string) error {
