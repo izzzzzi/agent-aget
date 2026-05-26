@@ -34,6 +34,23 @@ func TestBatchRequiresStdinFlag(t *testing.T) {
 	assertInvalidArgsJSON(t, stderr)
 }
 
+func TestBatchHelpReturnsAgentHelp(t *testing.T) {
+	stdout, stderr, err := executeForTest("batch", "--help")
+	if err != nil {
+		t.Fatalf("expected help success, got err=%v stderr=%s", err, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["ok"] != true || got["kind"] != "agent_help" || got["command_group"] != "batch" {
+		t.Fatalf("unexpected batch help payload: %#v", got)
+	}
+}
+
 func TestBatchStopsOnFirstErrorAndKeepsFailureOnStdout(t *testing.T) {
 	t.Setenv("AGET_STATE_DIR", t.TempDir())
 	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")

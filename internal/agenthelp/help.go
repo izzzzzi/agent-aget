@@ -97,6 +97,31 @@ func GroupHelp(name string) (HelpPayload, bool) {
 				"path":    "aget browser path",
 			},
 		},
+		"batch": {
+			OK: true, Tool: "aget", Audience: "llm_agent", Kind: "agent_help",
+			CommandGroup: "batch", AgentPromptCommand: "aget prompt",
+			Workflow: []string{
+				"Use batch for multi-step page workflows after opening a session",
+				"Read one JSON array from stdin with --stdin",
+				"Batch stops at the first failed step and returns JSON on stdout",
+				"Do not include secrets in logs; fill results report text_len only",
+			},
+			Commands: map[string]string{
+				"batch": "aget batch -s SID --stdin",
+			},
+		},
+		"doctor": {
+			OK: true, Tool: "aget", Audience: "llm_agent", Kind: "agent_help",
+			CommandGroup: "doctor", AgentPromptCommand: "aget prompt",
+			Workflow: []string{
+				"Run doctor when install, browser resolution, or startup readiness is unclear",
+				"Doctor emits JSON checks and exits non-zero if any check fails",
+				"Doctor is non-destructive and does not download browsers",
+			},
+			Commands: map[string]string{
+				"doctor": "aget doctor",
+			},
+		},
 		"session": {
 			OK: true, Tool: "aget", Audience: "llm_agent", Kind: "agent_help",
 			CommandGroup: "session", AgentPromptCommand: "aget prompt",

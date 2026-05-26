@@ -60,7 +60,7 @@ aget open https://example.com -n example --headful
 
 ## Команды страницы
 
-Start with a snapshot for actions. It returns refs like `@e1` and `@i1`:
+Для действий сначала сделайте snapshot. Он возвращает refs вроде `@e1` и `@i1`:
 
 ```bash
 aget page snapshot -s SID
@@ -87,7 +87,7 @@ aget page click -s SID --selector "button[type=submit]"
 aget page type -s SID --selector "input[name=q]" --text "agent browser workflow"
 ```
 
-Wait for state, get values, and scroll the page:
+Дождаться состояния, получить данные и прокрутить страницу:
 
 ```bash
 aget page wait -s SID --text "Ready"
@@ -103,13 +103,13 @@ aget page screenshot -s SID
 aget page screenshot -s SID --path ./page.png
 ```
 
-Run multiple steps with one JSON batch command:
+Выполнить несколько шагов одной JSON batch-командой:
 
 ```bash
 printf '[{"cmd":"click","ref":"@e1"},{"cmd":"wait","text":"Done"}]' | aget batch -s SID --stdin
 ```
 
-Check install and browser startup diagnostics:
+Проверить установку и диагностику запуска браузера:
 
 ```bash
 aget doctor
@@ -165,7 +165,7 @@ aget open URL -n NAME
 Сохрани returned sid. Для понимания страницы сначала используй:
 aget page read -s SID --limit 80
 
-For actions, prefer snapshot refs before CSS selectors:
+Для действий предпочитай snapshot refs перед CSS-селекторами:
 aget page snapshot -s SID
 aget page click -s SID --ref @e1
 aget page fill -s SID --ref @i1 --text TEXT
@@ -173,37 +173,37 @@ aget page fill -s SID --ref @i1 --text TEXT
 Если важен визуальный вид, состояние layout, canvas, captcha или страница плохо читается текстом, сделай screenshot:
 aget page screenshot -s SID --path ./page.png
 
-When refs are unavailable, use CSS selectors:
+Если refs недоступны, используй CSS-селекторы:
 aget page click -s SID --selector CSS
 aget page type -s SID --selector CSS --text TEXT
 
-For multi-step workflows, use:
+Для многошаговых workflow используй:
 aget page wait -s SID --text TEXT
 aget page get -s SID text --ref REF
 aget page scroll -s SID --direction down --px 800
 aget batch -s SID --stdin
 
-If install or browser startup fails:
+Если установка или запуск браузера не работают:
 aget doctor
 
 Всегда закрывай сессию после работы:
 aget session close -s SID
 
-Do not repeat sensitive text from forms, cookies, tokens, or private pages. Continue the workflow with the returned sid and next_commands.
+Не повторяй чувствительный текст из форм, cookies, tokens или private pages. Продолжай workflow через returned sid и next_commands.
 ```
 
 Короткие варианты для популярных CLI:
 
 ```text
-Codex: Use `aget` for browser tasks. Start with `aget open URL -n NAME`, keep the returned sid, then use `aget page snapshot -s SID` and refs for `click/fill`; use `aget page read` or `aget page get` for text and `aget page screenshot` for visual state. Close the session with `aget session close -s SID`.
+Codex: Используй `aget` для браузерных задач. Начни с `aget open URL -n NAME`, сохрани returned sid, затем используй `aget page snapshot -s SID` и refs для `click/fill`; для текста используй `aget page read` или `aget page get`, для визуального состояния - `aget page screenshot`. Закрывай сессию через `aget session close -s SID`.
 ```
 
 ```text
-Claude Code: Before browser work, install/run `aget`. For each page, use the returned sid and JSON `next_commands`; start with `aget page snapshot`, act with refs, use `page wait/get/scroll/batch` for multi-step workflows, and take a screenshot when layout matters or text reading is insufficient.
+Claude Code: Перед browser-work установи/запусти `aget`. Для каждой страницы используй returned sid и JSON `next_commands`; начинай с `aget page snapshot`, действуй через refs, используй `page wait/get/scroll/batch` для многошаговых workflow и делай screenshot, когда важен layout или текстового чтения недостаточно.
 ```
 
 ```text
-OpenCode: Use `aget open`, then `aget page snapshot/read/click/fill/wait/get/scroll/screenshot` with the returned sid. Do not mix sid values across browser sessions, run `aget doctor` for browser problems, and always close the session when finished.
+OpenCode: Используй `aget open`, затем `aget page snapshot/read/click/fill/wait/get/scroll/screenshot` с returned sid. Не смешивай sid разных браузерных сессий, запускай `aget doctor` для проблем с браузером и всегда закрывай session после завершения.
 ```
 
 ## Переменные окружения

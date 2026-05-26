@@ -62,6 +62,21 @@ func TestPageHelpIncludesRefWorkflow(t *testing.T) {
 	}
 }
 
+func TestBatchAndDoctorGroupHelp(t *testing.T) {
+	for _, name := range []string{"batch", "doctor"} {
+		payload, ok := GroupHelp(name)
+		if !ok {
+			t.Fatalf("%s help missing", name)
+		}
+		if payload.CommandGroup != name {
+			t.Fatalf("%s CommandGroup = %q", name, payload.CommandGroup)
+		}
+		if len(payload.Commands) == 0 {
+			t.Fatalf("%s commands missing", name)
+		}
+	}
+}
+
 func TestGroupHelpUnknown(t *testing.T) {
 	if _, ok := GroupHelp("missing"); ok {
 		t.Fatal("GroupHelp(missing) ok = true, want false")

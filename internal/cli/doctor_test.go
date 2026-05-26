@@ -114,4 +114,7 @@ func TestDoctorHelpReturnsAgentHelp(t *testing.T) {
 	if got["ok"] != true || got["kind"] != "agent_help" {
 		t.Fatalf("unexpected help payload: %#v", got)
 	}
+	if got["command_group"] != "doctor" {
+		t.Fatalf("command_group = %v, want doctor", got["command_group"])
+	}
 }
