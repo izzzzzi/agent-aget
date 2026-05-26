@@ -155,6 +155,33 @@ func TestBatchInvalidJSONReturnsStructuredStdoutError(t *testing.T) {
 	}
 }
 
+func TestBatchFillRequiresText(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	stdout, stderr, err := executeForTestWithStdin(`[{"cmd":"fill","selector":"#email"}]`, "batch", "-s", "abc12345", "--stdin")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["ok"] != false || got["failed_index"] != float64(0) {
+		t.Fatalf("response = %#v", got)
+	}
+	errorPayload := got["error"].(map[string]any)
+	if errorPayload["code"] != "invalid_args" {
+		t.Fatalf("error = %#v", errorPayload)
+	}
+}
+
 type failingBatchDriver struct {
 	recordingDriver
 	failOnPress bool

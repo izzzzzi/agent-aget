@@ -143,6 +143,9 @@ func runBatchStep(ctx context.Context, svc *page.Service, sid string, step batch
 		if err := validateBatchTarget(step); err != nil {
 			return nil, err
 		}
+		if step.Text == "" {
+			return nil, errors.New("text required")
+		}
 		if err := svc.Fill(ctx, page.FillOptions{Target: batchTarget(sid, step), Text: step.Text}); err != nil {
 			return nil, err
 		}
@@ -257,6 +260,7 @@ func isBatchValidationError(err error) bool {
 	switch err.Error() {
 	case "selector or ref required",
 		"selector and ref are mutually exclusive",
+		"text required",
 		"key required",
 		"direction required",
 		"cmd required",
