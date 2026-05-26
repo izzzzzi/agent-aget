@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"os"
 
 	"github.com/izzzzzi/agent-aget/internal/browser"
@@ -22,7 +23,13 @@ func newDoctorCommand() *cobra.Command {
 				{Name: "snapshots_dir", Run: checkWritableDir(state.SnapshotsDir())},
 				{Name: "browser", Run: checkBrowserResolution},
 			}}.Run()
-			return writeJSON(cmd, result)
+			if err := writeJSON(cmd, result); err != nil {
+				return err
+			}
+			if !result.OK {
+				return errors.New("doctor checks failed")
+			}
+			return nil
 		},
 	}
 	configureAgentHelp(cmd)

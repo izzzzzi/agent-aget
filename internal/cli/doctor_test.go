@@ -54,6 +54,30 @@ func TestDoctorRejectsPositionalsWithJSONError(t *testing.T) {
 	assertInvalidArgsJSON(t, stderr)
 }
 
+func TestDoctorFailedCheckReturnsErrorWithJSONStdout(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state-file")
+	if err := os.WriteFile(path, []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AGET_STATE_DIR", path)
+
+	stdout, stderr, err := executeForTest("doctor")
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("stdout is not json: %s", stdout)
+	}
+	if got["ok"] != false {
+		t.Fatalf("ok = %v, want false", got["ok"])
+	}
+}
+
 func TestDoctorWritableCheckDoesNotOverwriteExistingProbeName(t *testing.T) {
 	dir := t.TempDir()
 	probe := filepath.Join(dir, ".doctor-write-test")
