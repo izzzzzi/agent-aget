@@ -434,7 +434,15 @@ func TestNewChromeDPDriverSurvivesParentCancellation(t *testing.T) {
 func snapshotElementsForHTML(t *testing.T, html string) []Element {
 	t.Helper()
 
-	ctx, cancel := chromedp.NewContext(context.Background())
+	allocatorCtx, cancelAllocator := chromedp.NewExecAllocator(
+		context.Background(),
+		append(chromedp.DefaultExecAllocatorOptions[:],
+			chromedp.Flag("no-sandbox", true),
+		)...,
+	)
+	defer cancelAllocator()
+
+	ctx, cancel := chromedp.NewContext(allocatorCtx)
 	defer cancel()
 
 	var raw string
