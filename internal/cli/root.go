@@ -36,7 +36,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return writeInvalidArgs(cmd, err.Error())
 	})
-	cmd.AddCommand(newVersionCommand(), newSessionCommand(), newOpenCommand(), newPageCommand(), newBrowserCommand(), newPromptCommand(), newAgentInstructionsCommand())
+	cmd.AddCommand(newVersionCommand(), newSessionCommand(), newOpenCommand(), newPageCommand(), newBatchCommand(), newBrowserCommand(), newPromptCommand(), newAgentInstructionsCommand())
 	return cmd
 }
 
