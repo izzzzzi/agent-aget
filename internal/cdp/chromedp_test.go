@@ -434,6 +434,10 @@ func TestNewChromeDPDriverSurvivesParentCancellation(t *testing.T) {
 func snapshotElementsForHTML(t *testing.T, html string) []Element {
 	t.Helper()
 
+	if os.Getenv("AGET_RUN_CHROME_TESTS") != "1" {
+		t.Skip("set AGET_RUN_CHROME_TESTS=1 to run live Chrome snapshot tests")
+	}
+
 	allocatorCtx, cancelAllocator := chromedp.NewExecAllocator(
 		context.Background(),
 		append(chromedp.DefaultExecAllocatorOptions[:],
