@@ -148,26 +148,78 @@ func (d *ChromeDPDriver) Read(ctx context.Context) (PageState, error) {
 func (d *ChromeDPDriver) Snapshot(ctx context.Context) (SnapshotState, error) {
 	var state SnapshotState
 	var raw string
-	script := `(() => {
+	if err := d.runActionsWithTransientRetry(ctx,
+		waitForReadableBody(),
+		chromedp.Location(&state.URL),
+		chromedp.Title(&state.Title),
+		chromedp.Evaluate(snapshotScript(), &raw),
+	); err != nil {
+		return SnapshotState{}, err
+	}
+	if err := json.Unmarshal([]byte(raw), &state.Elements); err != nil {
+		return SnapshotState{}, err
+	}
+	return state, nil
+}
+
+func snapshotScript() string {
+	return `(() => {
 	  const cssEscape = (value) => {
 	    if (window.CSS && CSS.escape) return CSS.escape(value);
 	    return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 	  };
+	  const cssStringEscape = (value) => (
+	    String(value)
+	      .replace(/\\/g, '\\\\')
+	      .replace(/"/g, '\\"')
+	      .replace(/\n/g, '\\A ')
+	      .replace(/\r/g, '\\D ')
+	      .replace(/\f/g, '\\C ')
+	  );
+	  const pointsToElement = (selector, el) => {
+	    try {
+	      return document.querySelector(selector) === el;
+	    } catch {
+	      return false;
+	    }
+	  };
+	  const uniqueElement = (selector, el) => {
+	    try {
+	      const matches = document.querySelectorAll(selector);
+	      return matches.length === 1 && matches[0] === el;
+	    } catch {
+	      return false;
+	    }
+	  };
 	  const selectorFor = (el) => {
-	    if (el.id) return '#' + cssEscape(el.id);
-	    const name = el.getAttribute('name');
-	    if (name) return el.tagName.toLowerCase() + '[name="' + cssEscape(name) + '"]';
+	    if (el.id) {
+	      const selector = '#' + cssEscape(el.id);
+	      if (uniqueElement(selector, el)) return selector;
+	    }
 	    const testid = el.getAttribute('data-testid');
-	    if (testid) return '[data-testid="' + cssEscape(testid) + '"]';
-	    let selector = el.tagName.toLowerCase();
+	    if (testid) {
+	      const selector = '[data-testid="' + cssStringEscape(testid) + '"]';
+	      if (uniqueElement(selector, el)) return selector;
+	    }
+	    const name = el.getAttribute('name');
+	    if (name) {
+	      const selector = el.tagName.toLowerCase() + '[name="' + cssStringEscape(name) + '"]';
+	      if (uniqueElement(selector, el)) return selector;
+	    }
+	    const parts = [];
 	    let current = el;
-	    while (current && current.parentElement && selector.split('>').length < 5) {
+	    while (current && current.nodeType === Node.ELEMENT_NODE) {
+	      let part = current.tagName.toLowerCase();
 	      const parent = current.parentElement;
-	      const same = Array.from(parent.children).filter((child) => child.tagName === current.tagName);
-	      if (same.length > 1) selector = current.tagName.toLowerCase() + ':nth-of-type(' + (same.indexOf(current) + 1) + ')>' + selector;
+	      if (parent) {
+	        const same = Array.from(parent.children).filter((child) => child.tagName === current.tagName);
+	        if (same.length > 1) part += ':nth-of-type(' + (same.indexOf(current) + 1) + ')';
+	      }
+	      parts.unshift(part);
 	      current = parent;
 	    }
-	    return selector;
+	    const selector = parts.join(' > ');
+	    return pointsToElement(selector, el) ? selector : '';
 	  };
 	  const visible = (el) => {
 	    const rect = el.getBoundingClientRect();
@@ -199,18 +251,6 @@ func (d *ChromeDPDriver) Snapshot(ctx context.Context) (SnapshotState, error) {
 	    enabled: enabled(el)
 	  })));
 	})()`
-	if err := d.runActionsWithTransientRetry(ctx,
-		waitForReadableBody(),
-		chromedp.Location(&state.URL),
-		chromedp.Title(&state.Title),
-		chromedp.Evaluate(script, &raw),
-	); err != nil {
-		return SnapshotState{}, err
-	}
-	if err := json.Unmarshal([]byte(raw), &state.Elements); err != nil {
-		return SnapshotState{}, err
-	}
-	return state, nil
 }
 
 func waitForReadableBody() chromedp.Action {

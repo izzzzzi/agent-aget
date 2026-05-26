@@ -2,6 +2,7 @@ package cdp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -221,6 +222,60 @@ func TestScreenshotRetriesTransientZeroWidthError(t *testing.T) {
 	}
 }
 
+func TestSnapshotSelectorsTargetDuplicateButtons(t *testing.T) {
+	elements := snapshotElementsForHTML(t, `<!doctype html>
+<html><head><title>selectors</title></head><body>
+  <section><button>First</button><button>Second</button></section>
+  <section><button>Third</button><button>Fourth</button></section>
+</body></html>`)
+
+	want := map[string]string{
+		"First":  "html > body > section:nth-of-type(1) > button:nth-of-type(1)",
+		"Second": "html > body > section:nth-of-type(1) > button:nth-of-type(2)",
+		"Third":  "html > body > section:nth-of-type(2) > button:nth-of-type(1)",
+		"Fourth": "html > body > section:nth-of-type(2) > button:nth-of-type(2)",
+	}
+	assertSnapshotSelectors(t, elements, want)
+}
+
+func TestSnapshotSelectorsTargetNestedElements(t *testing.T) {
+	elements := snapshotElementsForHTML(t, `<!doctype html>
+<html><head><title>selectors</title></head><body>
+  <form><label><span>Email</span><input placeholder="Email"></label></form>
+</body></html>`)
+
+	assertSnapshotSelectors(t, elements, map[string]string{
+		"Email": "html > body > form > label > input",
+	})
+}
+
+func TestSnapshotSelectorsAvoidRepeatedNameShortcuts(t *testing.T) {
+	elements := snapshotElementsForHTML(t, `<!doctype html>
+<html><head><title>selectors</title></head><body>
+  <form><input name="q" placeholder="Search one"><input name="q" placeholder="Search two"></form>
+</body></html>`)
+
+	assertSnapshotSelectors(t, elements, map[string]string{
+		"Search one": "html > body > form > input:nth-of-type(1)",
+		"Search two": "html > body > form > input:nth-of-type(2)",
+	})
+}
+
+func TestSnapshotSelectorsUseEscapedUniqueShortcuts(t *testing.T) {
+	elements := snapshotElementsForHTML(t, `<!doctype html>
+<html><head><title>selectors</title></head><body>
+  <button id="save:primary">Save</button>
+  <button data-testid='quote"button'>Quote</button>
+  <input name="user.email" placeholder="Email">
+</body></html>`)
+
+	assertSnapshotSelectors(t, elements, map[string]string{
+		"Save":  "#save\\:primary",
+		"Quote": `[data-testid="quote\"button"]`,
+		"Email": `input[name="user.email"]`,
+	})
+}
+
 func TestCallContextPreservesCallDeadline(t *testing.T) {
 	callDeadline := time.Now().Add(50 * time.Millisecond)
 	callCtx, cancelCall := context.WithDeadline(context.Background(), callDeadline)
@@ -344,5 +399,55 @@ func TestNewChromeDPDriverSurvivesParentCancellation(t *testing.T) {
 
 	if err := driver.ctx.Err(); err != nil {
 		t.Fatalf("driver context was canceled with parent: %v", err)
+	}
+}
+
+func snapshotElementsForHTML(t *testing.T, html string) []Element {
+	t.Helper()
+
+	ctx, cancel := chromedp.NewContext(context.Background())
+	defer cancel()
+
+	var raw string
+	if err := chromedp.Run(ctx,
+		chromedp.Navigate("data:text/html,"+html),
+		chromedp.WaitReady("body", chromedp.ByQuery),
+		chromedp.Evaluate(snapshotScript(), &raw),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	var elements []Element
+	if err := json.Unmarshal([]byte(raw), &elements); err != nil {
+		t.Fatal(err)
+	}
+	for _, element := range elements {
+		var matches int
+		script := fmt.Sprintf(`document.querySelectorAll(%q).length`, element.Selector)
+		if err := chromedp.Run(ctx, chromedp.Evaluate(script, &matches)); err != nil {
+			t.Fatalf("selector %q is invalid: %v", element.Selector, err)
+		}
+		if matches != 1 {
+			t.Fatalf("selector %q matches %d elements, want 1", element.Selector, matches)
+		}
+	}
+	return elements
+}
+
+func assertSnapshotSelectors(t *testing.T, elements []Element, want map[string]string) {
+	t.Helper()
+
+	seen := make(map[string]Element, len(elements))
+	for _, element := range elements {
+		seen[element.Text] = element
+	}
+	for text, selector := range want {
+		element, ok := seen[text]
+		if !ok {
+			t.Fatalf("missing snapshot element with text %q in %#v", text, elements)
+		}
+		if element.Selector != selector {
+			t.Fatalf("selector for %q = %q, want %q", text, element.Selector, selector)
+		}
 	}
 }
