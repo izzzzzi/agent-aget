@@ -40,6 +40,10 @@ func ArtifactsDir() string {
 	return filepath.Join(BaseDir(), "artifacts")
 }
 
+func SnapshotsDir() string {
+	return filepath.Join(BaseDir(), "snapshots")
+}
+
 func ProfilesDir() string {
 	return filepath.Join(BaseDir(), "profiles")
 }
