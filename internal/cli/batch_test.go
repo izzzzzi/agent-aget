@@ -182,6 +182,55 @@ func TestBatchFillRequiresText(t *testing.T) {
 	}
 }
 
+func TestBatchFillAllowsEmptyText(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	stdout, stderr, err := executeForTestWithStdin(`[{"cmd":"fill","selector":"#email","text":""}]`, "batch", "-s", "abc12345", "--stdin")
+	if err != nil {
+		t.Fatalf("batch failed: %v stderr=%s stdout=%s", err, stderr, stdout)
+	}
+	if driver.filledSelector != "#email" || driver.filledText != "" {
+		t.Fatalf("filled selector/text = %q/%q", driver.filledSelector, driver.filledText)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	results := got["results"].([]any)
+	first := results[0].(map[string]any)
+	if first["text_len"] != float64(0) {
+		t.Fatalf("first result = %#v", first)
+	}
+}
+
+func TestBatchUnsupportedGetKindReturnsInvalidArgs(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	stdout, stderr, err := executeForTestWithStdin(`[{"cmd":"get","kind":"bogus"}]`, "batch", "-s", "abc12345", "--stdin")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	errorPayload := got["error"].(map[string]any)
+	if errorPayload["code"] != "invalid_args" {
+		t.Fatalf("error = %#v", errorPayload)
+	}
+}
+
 type failingBatchDriver struct {
 	recordingDriver
 	failOnPress bool

@@ -12,17 +12,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var errUnsupportedGetKind = errors.New("unsupported get kind")
+
 type batchStep struct {
-	Cmd       string `json:"cmd"`
-	Selector  string `json:"selector,omitempty"`
-	Ref       string `json:"ref,omitempty"`
-	Text      string `json:"text,omitempty"`
-	Key       string `json:"key,omitempty"`
-	Direction string `json:"direction,omitempty"`
-	Pixels    int    `json:"pixels,omitempty"`
-	Kind      string `json:"kind,omitempty"`
-	URL       string `json:"url,omitempty"`
-	Load      string `json:"load,omitempty"`
+	Cmd       string  `json:"cmd"`
+	Selector  string  `json:"selector,omitempty"`
+	Ref       string  `json:"ref,omitempty"`
+	Text      *string `json:"text,omitempty"`
+	Key       string  `json:"key,omitempty"`
+	Direction string  `json:"direction,omitempty"`
+	Pixels    int     `json:"pixels,omitempty"`
+	Kind      string  `json:"kind,omitempty"`
+	URL       string  `json:"url,omitempty"`
+	Load      string  `json:"load,omitempty"`
 }
 
 type batchError struct {
@@ -143,14 +145,14 @@ func runBatchStep(ctx context.Context, svc *page.Service, sid string, step batch
 		if err := validateBatchTarget(step); err != nil {
 			return nil, err
 		}
-		if step.Text == "" {
+		if step.Text == nil {
 			return nil, errors.New("text required")
 		}
-		if err := svc.Fill(ctx, page.FillOptions{Target: batchTarget(sid, step), Text: step.Text}); err != nil {
+		if err := svc.Fill(ctx, page.FillOptions{Target: batchTarget(sid, step), Text: *step.Text}); err != nil {
 			return nil, err
 		}
 		result := batchTargetResult("fill", step)
-		result["text_len"] = len(step.Text)
+		result["text_len"] = len(*step.Text)
 		return result, nil
 	case "press":
 		if step.Key == "" {
@@ -161,13 +163,17 @@ func runBatchStep(ctx context.Context, svc *page.Service, sid string, step batch
 		}
 		return map[string]any{"cmd": "press", "ok": true, "key": step.Key}, nil
 	case "wait":
-		if countNonEmpty(step.Selector, step.Text, step.URL, step.Load) != 1 {
+		if countBatchWaitConditions(step) != 1 {
 			return nil, errors.New("exactly one wait condition required")
 		}
 		if step.Ref != "" {
 			return nil, errors.New("ref is not supported for wait")
 		}
-		if err := svc.Wait(ctx, page.WaitOptions{Target: page.ActionTarget{Selector: step.Selector}, Text: step.Text, URL: step.URL, Load: step.Load}); err != nil {
+		text := ""
+		if step.Text != nil {
+			text = *step.Text
+		}
+		if err := svc.Wait(ctx, page.WaitOptions{Target: page.ActionTarget{Selector: step.Selector}, Text: text, URL: step.URL, Load: step.Load}); err != nil {
 			return nil, err
 		}
 		return map[string]any{"cmd": "wait", "ok": true}, nil
@@ -185,7 +191,7 @@ func runBatchStep(ctx context.Context, svc *page.Service, sid string, step batch
 		return map[string]any{"cmd": "scroll", "ok": true, "direction": step.Direction, "pixels": pixels}, nil
 	case "get":
 		if !validGetKind(step.Kind) {
-			return nil, fmt.Errorf("unsupported get kind %s", step.Kind)
+			return nil, fmt.Errorf("%w %s", errUnsupportedGetKind, step.Kind)
 		}
 		needsTarget := step.Kind == "text" || step.Kind == "html" || step.Kind == "value"
 		if needsTarget {
@@ -245,6 +251,9 @@ func batchErrorCode(step batchStep, err error) string {
 			return "page_wait_timeout"
 		}
 	}
+	if errors.Is(err, errUnsupportedGetKind) {
+		return "invalid_args"
+	}
 	switch step.Cmd {
 	case "", "click", "fill", "press", "scroll", "get", "snapshot":
 		if isBatchValidationError(err) {
@@ -254,6 +263,14 @@ func batchErrorCode(step batchStep, err error) string {
 	default:
 		return "invalid_args"
 	}
+}
+
+func countBatchWaitConditions(step batchStep) int {
+	count := countNonEmpty(step.Selector, step.URL, step.Load)
+	if step.Text != nil {
+		count++
+	}
+	return count
 }
 
 func isBatchValidationError(err error) bool {
