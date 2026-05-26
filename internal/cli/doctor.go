@@ -2,7 +2,6 @@ package cli
 
 import (
 	"os"
-	"path/filepath"
 
 	"github.com/izzzzzi/agent-aget/internal/browser"
 	"github.com/izzzzzi/agent-aget/internal/doctor"
@@ -35,11 +34,21 @@ func checkWritableDir(dir string) func() doctor.Detail {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return doctor.DetailFromError(err, "check directory permissions")
 		}
-		probe := filepath.Join(dir, ".doctor-write-test")
-		if err := os.WriteFile(probe, []byte("ok"), 0o600); err != nil {
+		probe, err := os.CreateTemp(dir, ".doctor-write-test-*")
+		if err != nil {
 			return doctor.DetailFromError(err, "check directory permissions")
 		}
-		if err := os.Remove(probe); err != nil {
+		probePath := probe.Name()
+		if _, err := probe.Write([]byte("ok")); err != nil {
+			_ = probe.Close()
+			_ = os.Remove(probePath)
+			return doctor.DetailFromError(err, "check directory permissions")
+		}
+		if err := probe.Close(); err != nil {
+			_ = os.Remove(probePath)
+			return doctor.DetailFromError(err, "check directory permissions")
+		}
+		if err := os.Remove(probePath); err != nil {
 			return doctor.DetailFromError(err, "check directory permissions")
 		}
 		return doctor.Detail{OK: true, Message: "writable"}

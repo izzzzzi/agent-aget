@@ -2,6 +2,8 @@ package cli
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -50,6 +52,27 @@ func TestDoctorRejectsPositionalsWithJSONError(t *testing.T) {
 		t.Fatalf("stdout = %q, want empty", stdout)
 	}
 	assertInvalidArgsJSON(t, stderr)
+}
+
+func TestDoctorWritableCheckDoesNotOverwriteExistingProbeName(t *testing.T) {
+	dir := t.TempDir()
+	probe := filepath.Join(dir, ".doctor-write-test")
+	if err := os.WriteFile(probe, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got := checkWritableDir(dir)()
+
+	if !got.OK {
+		t.Fatalf("check failed: %#v", got)
+	}
+	body, err := os.ReadFile(probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "keep" {
+		t.Fatalf("probe body = %q, want keep", string(body))
+	}
 }
 
 func TestDoctorHelpReturnsAgentHelp(t *testing.T) {
