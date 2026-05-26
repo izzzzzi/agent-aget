@@ -52,6 +52,60 @@ func TestClickReturnsCanceledContextWithoutRunningAction(t *testing.T) {
 	}
 }
 
+func TestFillReturnsCanceledContextWithoutRunningAction(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	driver := &ChromeDPDriver{
+		ctx: context.Background(),
+		run: func(ctx context.Context, actions ...chromedp.Action) error {
+			t.Fatal("runner should not be called for an already canceled context")
+			return nil
+		},
+	}
+
+	err := driver.Fill(ctx, "#email", "me@example.com")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Fill error = %v, want context.Canceled", err)
+	}
+}
+
+func TestPressReturnsCanceledContextWithoutRunningAction(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	driver := &ChromeDPDriver{
+		ctx: context.Background(),
+		run: func(ctx context.Context, actions ...chromedp.Action) error {
+			t.Fatal("runner should not be called for an already canceled context")
+			return nil
+		},
+	}
+
+	err := driver.Press(ctx, "Enter")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Press error = %v, want context.Canceled", err)
+	}
+}
+
+func TestWaitTextReturnsCanceledContextWithoutRunningAction(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	driver := &ChromeDPDriver{
+		ctx: context.Background(),
+		run: func(ctx context.Context, actions ...chromedp.Action) error {
+			t.Fatal("runner should not be called for an already canceled context")
+			return nil
+		},
+	}
+
+	err := driver.Wait(ctx, WaitOptions{Text: "Ready"})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Wait error = %v, want context.Canceled", err)
+	}
+}
+
 func TestRunActionsCancelsWhenCallContextIsCanceled(t *testing.T) {
 	callCtx, cancelCall := context.WithCancel(context.Background())
 	started := make(chan context.Context, 1)

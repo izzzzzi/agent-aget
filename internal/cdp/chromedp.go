@@ -145,6 +145,74 @@ func (d *ChromeDPDriver) Read(ctx context.Context) (PageState, error) {
 	return state, nil
 }
 
+func (d *ChromeDPDriver) Snapshot(ctx context.Context) (SnapshotState, error) {
+	var state SnapshotState
+	var raw string
+	script := `(() => {
+	  const cssEscape = (value) => {
+	    if (window.CSS && CSS.escape) return CSS.escape(value);
+	    return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+	  };
+	  const selectorFor = (el) => {
+	    if (el.id) return '#' + cssEscape(el.id);
+	    const name = el.getAttribute('name');
+	    if (name) return el.tagName.toLowerCase() + '[name="' + cssEscape(name) + '"]';
+	    const testid = el.getAttribute('data-testid');
+	    if (testid) return '[data-testid="' + cssEscape(testid) + '"]';
+	    let selector = el.tagName.toLowerCase();
+	    let current = el;
+	    while (current && current.parentElement && selector.split('>').length < 5) {
+	      const parent = current.parentElement;
+	      const same = Array.from(parent.children).filter((child) => child.tagName === current.tagName);
+	      if (same.length > 1) selector = current.tagName.toLowerCase() + ':nth-of-type(' + (same.indexOf(current) + 1) + ')>' + selector;
+	      current = parent;
+	    }
+	    return selector;
+	  };
+	  const visible = (el) => {
+	    const rect = el.getBoundingClientRect();
+	    const style = window.getComputedStyle(el);
+	    return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+	  };
+	  const enabled = (el) => !el.disabled && el.getAttribute('aria-disabled') !== 'true';
+	  const kindFor = (el) => {
+	    const role = (el.getAttribute('role') || '').toLowerCase();
+	    const tag = (el.tagName || '').toLowerCase();
+	    if (role === 'button' || tag === 'button') return 'button';
+	    if (role === 'link' || tag === 'a') return 'link';
+	    if (tag === 'input' || tag === 'textarea' || tag === 'select') return 'input';
+	    return role || tag;
+	  };
+	  const textFor = (el) => (
+	    el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('placeholder') || ''
+	  ).trim().slice(0, 200);
+	  const candidates = Array.from(document.querySelectorAll('a,button,input,textarea,select,[role=button],[role=link],[tabindex]'));
+	  return JSON.stringify(candidates.slice(0, 200).map((el, index) => ({
+	    ref: '@e' + (index + 1),
+	    kind: kindFor(el),
+	    selector: selectorFor(el),
+	    text: textFor(el),
+	    href: el.href || '',
+	    type: el.getAttribute('type') || '',
+	    name: el.getAttribute('name') || '',
+	    visible: visible(el),
+	    enabled: enabled(el)
+	  })));
+	})()`
+	if err := d.runActionsWithTransientRetry(ctx,
+		waitForReadableBody(),
+		chromedp.Location(&state.URL),
+		chromedp.Title(&state.Title),
+		chromedp.Evaluate(script, &raw),
+	); err != nil {
+		return SnapshotState{}, err
+	}
+	if err := json.Unmarshal([]byte(raw), &state.Elements); err != nil {
+		return SnapshotState{}, err
+	}
+	return state, nil
+}
+
 func waitForReadableBody() chromedp.Action {
 	return chromedp.ActionFunc(func(ctx context.Context) error {
 		err := chromedp.Poll(
@@ -166,6 +234,78 @@ func (d *ChromeDPDriver) Click(ctx context.Context, selector string) error {
 
 func (d *ChromeDPDriver) Type(ctx context.Context, selector, text string) error {
 	return d.runActions(ctx, chromedp.SendKeys(selector, text, chromedp.ByQuery))
+}
+
+func (d *ChromeDPDriver) Fill(ctx context.Context, selector, text string) error {
+	return d.runActions(ctx,
+		chromedp.SetValue(selector, "", chromedp.ByQuery),
+		chromedp.SendKeys(selector, text, chromedp.ByQuery),
+	)
+}
+
+func (d *ChromeDPDriver) Press(ctx context.Context, key string) error {
+	return d.runActions(ctx, chromedp.KeyEvent(key))
+}
+
+func (d *ChromeDPDriver) Scroll(ctx context.Context, direction string, pixels int) error {
+	if pixels <= 0 {
+		pixels = 800
+	}
+	x, y := 0, 0
+	switch direction {
+	case "up":
+		y = -pixels
+	case "down":
+		y = pixels
+	case "left":
+		x = -pixels
+	case "right":
+		x = pixels
+	default:
+		return fmt.Errorf("unsupported scroll direction %q", direction)
+	}
+	return d.runActions(ctx, chromedp.Evaluate(fmt.Sprintf(`window.scrollBy(%d, %d)`, x, y), nil))
+}
+
+func (d *ChromeDPDriver) Wait(ctx context.Context, options WaitOptions) error {
+	switch {
+	case options.Selector != "":
+		return d.runActions(ctx, chromedp.WaitVisible(options.Selector, chromedp.ByQuery))
+	case options.Text != "":
+		expr := fmt.Sprintf(`document.body && document.body.innerText.includes(%q)`, options.Text)
+		return d.runActions(ctx, chromedp.Poll(expr, nil, chromedp.WithPollingInterval(100*time.Millisecond)))
+	case options.URL != "":
+		expr := fmt.Sprintf(`location.href.includes(%q)`, strings.Trim(options.URL, "*"))
+		return d.runActions(ctx, chromedp.Poll(expr, nil, chromedp.WithPollingInterval(100*time.Millisecond)))
+	case options.Load != "":
+		return d.runActions(ctx, chromedp.WaitReady("body", chromedp.ByQuery))
+	default:
+		return errors.New("wait condition required")
+	}
+}
+
+func (d *ChromeDPDriver) Get(ctx context.Context, options GetOptions) (string, error) {
+	var out string
+	switch options.Kind {
+	case "url":
+		err := d.runActions(ctx, chromedp.Location(&out))
+		return out, err
+	case "title":
+		err := d.runActions(ctx, chromedp.Title(&out))
+		return out, err
+	case "text":
+		err := d.runActions(ctx, chromedp.Text(options.Selector, &out, chromedp.ByQuery))
+		return out, err
+	case "html":
+		err := d.runActions(ctx, chromedp.InnerHTML(options.Selector, &out, chromedp.ByQuery))
+		return out, err
+	case "value":
+		script := fmt.Sprintf(`document.querySelector(%q)?.value ?? ""`, options.Selector)
+		err := d.runActions(ctx, chromedp.Evaluate(script, &out))
+		return out, err
+	default:
+		return "", fmt.Errorf("unsupported get kind %q", options.Kind)
+	}
 }
 
 func (d *ChromeDPDriver) Screenshot(ctx context.Context, path string) error {
