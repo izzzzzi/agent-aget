@@ -249,6 +249,17 @@ func TestPageFillDoesNotEchoText(t *testing.T) {
 	}
 }
 
+func TestPageFillRequiresTextFlag(t *testing.T) {
+	stdout, stderr, err := executeForTest("page", "fill", "-s", "abc12345", "--selector", "input[name=email]")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	assertInvalidArgsJSON(t, stderr)
+}
+
 func TestPageWaitRequiresExactlyOneCondition(t *testing.T) {
 	stdout, stderr, err := executeForTest("page", "wait", "-s", "abc12345", "--selector", "#ready", "--text", "Ready")
 	if err == nil {

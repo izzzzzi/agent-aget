@@ -222,6 +222,9 @@ func newPageFillCommand() *cobra.Command {
 			if err := validateSelectorOrRef(cmd, selector, ref); err != nil {
 				return err
 			}
+			if !cmd.Flags().Changed("text") {
+				return writeInvalidArgs(cmd, "text required")
+			}
 			record, err := lookupSession(cmd, sid)
 			if err != nil {
 				return err
