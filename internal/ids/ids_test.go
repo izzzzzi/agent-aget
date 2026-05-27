@@ -16,3 +16,19 @@ func TestNewSessionID(t *testing.T) {
 		}
 	}
 }
+
+func TestValidSessionID(t *testing.T) {
+	valid := []string{"abc12345", "00000000", "ffffffff"}
+	for _, id := range valid {
+		if !ValidSessionID(id) {
+			t.Fatalf("ValidSessionID(%q) = false, want true", id)
+		}
+	}
+
+	invalid := []string{"", "a", "abc1234", "abc123456", "ABC12345", "../bad", "abc;rm", "abc def", "abc$(x)"}
+	for _, id := range invalid {
+		if ValidSessionID(id) {
+			t.Fatalf("ValidSessionID(%q) = true, want false", id)
+		}
+	}
+}

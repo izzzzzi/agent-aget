@@ -38,7 +38,7 @@ func TestPageClickRequiresSelector(t *testing.T) {
 func TestPageReadMissingSessionReturnsSessionNotFound(t *testing.T) {
 	t.Setenv("AGET_STATE_DIR", t.TempDir())
 
-	stdout, stderr, err := executeForTest("page", "read", "-s", "missing")
+	stdout, stderr, err := executeForTest("page", "read", "-s", "deadbeef")
 	if err == nil {
 		t.Fatal("expected error")
 	}

@@ -58,7 +58,7 @@ func TestRegistrySaveGetListDelete(t *testing.T) {
 
 func TestRegistryRejectsInvalidSIDs(t *testing.T) {
 	registry := NewRegistry(filepath.Join(t.TempDir(), "sessions"))
-	invalidSIDs := []string{"../outside", "a/b", "", "abc1234/"}
+	invalidSIDs := []string{"../outside", "a/b", "", "abc1234/", "abc;rm", "abc def", "abc$(touch x)", "abc|cat", "a"}
 
 	for _, sid := range invalidSIDs {
 		t.Run(sid, func(t *testing.T) {

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/izzzzzi/agent-aget/internal/ids"
 )
 
 var (
@@ -131,7 +133,7 @@ func (r *Registry) path(sid string) string {
 }
 
 func validateSID(sid string) error {
-	if sid == "" || sid != filepath.Base(sid) {
+	if !ids.ValidSessionID(sid) || sid != filepath.Base(sid) {
 		return ErrInvalidSID
 	}
 	return nil

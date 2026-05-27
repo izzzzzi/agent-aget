@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/izzzzzi/agent-aget/internal/ids"
 )
 
 var (
@@ -100,7 +102,7 @@ func (s *Store) path(sid string) string {
 }
 
 func validateSID(sid string) error {
-	if sid == "" || sid != filepath.Base(sid) {
+	if !ids.ValidSessionID(sid) || sid != filepath.Base(sid) {
 		return ErrInvalidSID
 	}
 	return nil

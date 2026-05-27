@@ -42,7 +42,7 @@ func TestSessionCloseRequiresSID(t *testing.T) {
 func TestSessionCloseMissingReturnsSessionNotFound(t *testing.T) {
 	t.Setenv("AGET_STATE_DIR", t.TempDir())
 
-	stdout, stderr, err := executeForTest("session", "close", "-s", "missing")
+	stdout, stderr, err := executeForTest("session", "close", "-s", "deadbeef")
 	if err == nil {
 		t.Fatal("expected error")
 	}
