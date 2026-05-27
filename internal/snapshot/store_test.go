@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -64,9 +65,23 @@ func TestStoreLoadMissingSnapshot(t *testing.T) {
 
 func TestStoreRejectsInvalidSID(t *testing.T) {
 	store := NewStore(t.TempDir())
-	invalidSIDs := []string{"../bad", "abc;rm", "abc def", "abc$(touch x)", "abc|cat", "abc/def", "", "a"}
+	invalidSIDs := []string{
+		"../bad",
+		"abc;rm",
+		"abc def",
+		"abc$(touch x)",
+		"abc|cat",
+		"abc/def",
+		"",
+		"a",
+		"abc1234",
+		"abc123456",
+		"ABC12345",
+		"Abc12345",
+		"abcdefgh",
+	}
 	for _, sid := range invalidSIDs {
-		t.Run(sid, func(t *testing.T) {
+		t.Run(fmt.Sprintf("%q", sid), func(t *testing.T) {
 			err := store.Save(Record{SID: sid, Elements: []Element{{Ref: "@e1", Selector: "button"}}})
 			if !errors.Is(err, ErrInvalidSID) {
 				t.Fatalf("err = %v, want ErrInvalidSID", err)

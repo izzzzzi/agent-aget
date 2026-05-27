@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -58,10 +59,25 @@ func TestRegistrySaveGetListDelete(t *testing.T) {
 
 func TestRegistryRejectsInvalidSIDs(t *testing.T) {
 	registry := NewRegistry(filepath.Join(t.TempDir(), "sessions"))
-	invalidSIDs := []string{"../outside", "a/b", "", "abc1234/", "abc;rm", "abc def", "abc$(touch x)", "abc|cat", "a"}
+	invalidSIDs := []string{
+		"../outside",
+		"a/b",
+		"",
+		"abc1234/",
+		"abc;rm",
+		"abc def",
+		"abc$(touch x)",
+		"abc|cat",
+		"a",
+		"abc1234",
+		"abc123456",
+		"ABC12345",
+		"Abc12345",
+		"abcdefgh",
+	}
 
 	for _, sid := range invalidSIDs {
-		t.Run(sid, func(t *testing.T) {
+		t.Run(fmt.Sprintf("%q", sid), func(t *testing.T) {
 			record := Record{SID: sid}
 
 			if err := registry.Save(record); !errors.Is(err, ErrInvalidSID) {

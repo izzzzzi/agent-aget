@@ -121,6 +121,34 @@ aget doctor
 aget session close -s SID
 ```
 
+## Примеры для agent CLI
+
+Базовый поток для агента:
+
+```bash
+aget open https://example.com -n research
+aget page snapshot -s SID
+aget page click -s SID --ref @e1
+aget page wait -s SID --text "Done"
+aget page read -s SID --limit 80
+aget session close -s SID
+```
+
+Заполнение формы через snapshot refs:
+
+```bash
+aget page snapshot -s SID
+aget page fill -s SID --ref @i1 --text "agent@example.com"
+aget page press -s SID --key Enter
+aget page get -s SID url
+```
+
+Многошаговый сценарий одной командой:
+
+```bash
+printf '[{"cmd":"snapshot"},{"cmd":"fill","ref":"@i1","text":"agent@example.com"},{"cmd":"press","key":"Enter"},{"cmd":"wait","text":"Ready"},{"cmd":"get","kind":"url"}]' | aget batch -s SID --stdin
+```
+
 ## Контракт JSON
 
 Операционные команды выводят один JSON-объект в stdout. Ошибки выводятся в stderr и имеют форму:
