@@ -2,7 +2,7 @@ module github.com/izzzzzi/agent-aget
 
 go 1.22
 
-toolchain go1.26.3
+toolchain go1.26.4
 
 require (
 	github.com/chromedp/cdproto v0.0.0-20241003230502-a4a8f7c660df

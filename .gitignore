@@ -9,3 +9,4 @@ docs/superpowers/*
 !docs/superpowers/plans/**
 .DS_Store
 coverage.out
+aget
