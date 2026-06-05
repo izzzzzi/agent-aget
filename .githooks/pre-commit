@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "=== gofmt ==="
+UNFMT=$(gofmt -l .)
+if [ -n "$UNFMT" ]; then
+  echo "ERROR: unformatted files:" >&2
+  echo "$UNFMT" >&2
+  echo "Run: gofmt -w ." >&2
+  exit 1
+fi
+echo "  clean"
+
+echo "=== go vet ==="
+go vet ./...
+echo "  clean"
+
+echo "=== go test ==="
+go test ./...
+echo "  clean"
+
+echo "=== npm run check ==="
+npm run check
+echo "  clean"
+
+echo "pre-commit ok"
