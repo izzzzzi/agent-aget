@@ -47,3 +47,11 @@ func SnapshotsDir() string {
 func ProfilesDir() string {
 	return filepath.Join(BaseDir(), "profiles")
 }
+
+func ProfileMetaPath() string {
+	return filepath.Join(ProfilesDir(), "profiles.json")
+}
+
+func ProfileUserDataDir(name string) string {
+	return filepath.Join(ProfilesDir(), name)
+}

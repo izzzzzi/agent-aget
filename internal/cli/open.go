@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/izzzzzi/agent-aget/internal/cdp"
 	"github.com/izzzzzi/agent-aget/internal/cookies"
 	"github.com/izzzzzi/agent-aget/internal/ids"
+	profilestore "github.com/izzzzzi/agent-aget/internal/profile"
 	sessionstore "github.com/izzzzzi/agent-aget/internal/session"
 	"github.com/izzzzzi/agent-aget/internal/state"
 	"github.com/spf13/cobra"
@@ -30,6 +32,7 @@ func newOpenCommand() *cobra.Command {
 	var headful bool
 	var browserPath string
 	var cookieInput string
+	var profileName string
 	cmd := &cobra.Command{
 		Use:   "open URL",
 		Short: "Open a URL in a managed browser session",
@@ -55,9 +58,35 @@ func newOpenCommand() *cobra.Command {
 				return writeError(cmd, "browser_launch_failed", err.Error(), nil)
 			}
 
-			// Parse cookies early so we fail fast before launching the browser
+			// Determine user data directory: profile or session-scoped
+			userDataDir := filepath.Join(state.ProfilesDir(), sid)
+			if profileName != "" {
+				store := profilestore.NewStore(state.ProfileMetaPath())
+				if _, err := store.Get(profileName); err != nil {
+					if errors.Is(err, profilestore.ErrNotFound) {
+						return writeError(cmd, "profile_not_found", "profile not found: "+profileName, map[string]any{"profile": profileName})
+					}
+					return writeError(cmd, "profile_lookup_failed", err.Error(), map[string]any{"profile": profileName})
+				}
+
+				// Check profile not already in use
+				sessions, _ := sessionstore.NewRegistry(state.SessionsDir()).List()
+				if sessions != nil {
+					for _, s := range sessions {
+						if s.Profile == profileName {
+							return writeError(cmd, "profile_in_use", "profile is already in use by session "+s.SID, map[string]any{"profile": profileName, "sid": s.SID})
+						}
+					}
+				}
+
+				userDataDir = state.ProfileUserDataDir(profileName)
+			}
+
+			// Parse cookies early so we fail fast before launching the browser.
+			// When --profile is set, cookies are already seeded in the profile;
+			// --cookies is ignored in that case.
 			var parsedCookies []*network.CookieParam
-			if cookieInput != "" {
+			if cookieInput != "" && profileName == "" {
 				parsedCookies, err = cookies.ParseCookies(cookieInput)
 				if err != nil {
 					return writeError(cmd, "cookie_parse_failed", err.Error(), nil)
@@ -65,7 +94,6 @@ func newOpenCommand() *cobra.Command {
 				if len(parsedCookies) == 0 {
 					return writeError(cmd, "cookie_parse_failed", "0 valid cookies parsed from input", nil)
 				}
-				// Apply domain from target URL to inline cookies without a domain
 				cookies.ApplyDomain(parsedCookies, url)
 			}
 
@@ -73,7 +101,7 @@ func newOpenCommand() *cobra.Command {
 				BinaryPath:  resolved.Path,
 				BrowserName: resolved.Browser,
 				URL:         url,
-				UserDataDir: filepath.Join(state.ProfilesDir(), sid),
+				UserDataDir: userDataDir,
 				Port:        port,
 				Headless:    !headful,
 			})
@@ -104,6 +132,7 @@ func newOpenCommand() *cobra.Command {
 				SID:        sid,
 				Name:       name,
 				URL:        url,
+				Profile:    profileName,
 				BrowserPID: process.PID,
 				DebugURL:   process.DebugURL,
 				Headless:   !headful,
@@ -142,6 +171,7 @@ func newOpenCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&headful, "headful", false, "run browser with a visible window")
 	cmd.Flags().StringVar(&browserPath, "browser-path", "", "browser binary path")
 	cmd.Flags().StringVar(&cookieInput, "cookies", "", "cookies to inject (file path for Netscape format, or inline name=value; pairs)")
+	cmd.Flags().StringVar(&profileName, "profile", "", "persistent browser profile to use (created with aget profile create)")
 	configureAgentHelp(cmd)
 	return cmd
 }

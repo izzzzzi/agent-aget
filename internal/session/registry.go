@@ -21,6 +21,7 @@ type Record struct {
 	Name       string    `json:"name,omitempty"`
 	URL        string    `json:"url"`
 	Title      string    `json:"title,omitempty"`
+	Profile    string    `json:"profile,omitempty"`
 	BrowserPID int       `json:"browser_pid"`
 	DebugURL   string    `json:"debug_url"`
 	Headless   bool      `json:"headless"`

@@ -71,6 +71,15 @@ aget page screenshot -s SID --path ./page.png
 
 # Batch
 aget batch -s SID --stdin
+
+# Profiles (persistent cookies across sessions)
+aget profile create ozon --cookies ozon-cookies.txt
+aget profile create samokat --cookies samokat-cookies.txt
+aget profile list
+aget profile show ozon
+aget open https://ozon.ru --profile ozon
+aget open https://samokat.ru --profile samokat
+aget profile delete ozon
 ```
 
 Run `aget doctor` when install or browser startup fails.
