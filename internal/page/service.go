@@ -168,12 +168,88 @@ func (s *Service) Type(ctx context.Context, selector, text string) error {
 	return s.driver.Type(ctx, selector, text)
 }
 
+func (s *Service) TypeTarget(ctx context.Context, target ActionTarget, text string) error {
+	selector, err := s.resolveTarget(target)
+	if err != nil {
+		return err
+	}
+	return s.driver.Type(ctx, selector, text)
+}
+
 func (s *Service) Fill(ctx context.Context, options FillOptions) error {
 	selector, err := s.resolveTarget(options.Target)
 	if err != nil {
 		return err
 	}
 	return s.driver.Fill(ctx, selector, options.Text)
+}
+
+func (s *Service) Select(ctx context.Context, target ActionTarget, value string) error {
+	selector, err := s.resolveTarget(target)
+	if err != nil {
+		return err
+	}
+	return s.driver.Select(ctx, selector, value)
+}
+
+func (s *Service) Is(ctx context.Context, target ActionTarget, prop string) (bool, error) {
+	selector, err := s.resolveTarget(target)
+	if err != nil {
+		return false, err
+	}
+	return s.driver.Is(ctx, selector, prop)
+}
+
+func (s *Service) Eval(ctx context.Context, expression string) (string, error) {
+	return s.driver.Eval(ctx, expression)
+}
+
+func (s *Service) Check(ctx context.Context, target ActionTarget) error {
+	selector, err := s.resolveTarget(target)
+	if err != nil {
+		return err
+	}
+	return s.driver.Check(ctx, selector)
+}
+
+func (s *Service) Uncheck(ctx context.Context, target ActionTarget) error {
+	selector, err := s.resolveTarget(target)
+	if err != nil {
+		return err
+	}
+	return s.driver.Uncheck(ctx, selector)
+}
+
+func (s *Service) Hover(ctx context.Context, target ActionTarget) error {
+	selector, err := s.resolveTarget(target)
+	if err != nil {
+		return err
+	}
+	return s.driver.Hover(ctx, selector)
+}
+
+func (s *Service) Focus(ctx context.Context, target ActionTarget) error {
+	selector, err := s.resolveTarget(target)
+	if err != nil {
+		return err
+	}
+	return s.driver.Focus(ctx, selector)
+}
+
+func (s *Service) Upload(ctx context.Context, target ActionTarget, files []string) error {
+	selector, err := s.resolveTarget(target)
+	if err != nil {
+		return err
+	}
+	return s.driver.Upload(ctx, selector, files)
+}
+
+func (s *Service) DialogAccept(ctx context.Context, promptText string) error {
+	return s.driver.DialogAccept(ctx, promptText)
+}
+
+func (s *Service) DialogDismiss(ctx context.Context) error {
+	return s.driver.DialogDismiss(ctx)
 }
 
 func (s *Service) Press(ctx context.Context, options PressOptions) error {
@@ -316,6 +392,10 @@ func nextCommands(sid string, elements []cdp.Element) []string {
 	}
 	for _, element := range elements {
 		switch {
+		case element.Kind == "select":
+			commands = append(commands, "aget page select -s "+sid+" --ref "+element.Ref+" --value VALUE")
+		case element.Kind == "input" && (element.Type == "checkbox" || element.Type == "radio"):
+			commands = append(commands, "aget page check -s "+sid+" --ref "+element.Ref)
 		case isInputKind(element.Kind):
 			commands = append(commands, "aget page fill -s "+sid+" --ref "+element.Ref+" --text TEXT")
 		default:

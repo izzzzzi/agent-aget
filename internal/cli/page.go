@@ -38,11 +38,21 @@ func newPageCommand() *cobra.Command {
 		newPageClickCommand(),
 		newPageTypeCommand(),
 		newPageFillCommand(),
+		newPageSelectCommand(),
 		newPagePressCommand(),
 		newPageWaitCommand(),
 		newPageScrollCommand(),
 		newPageGetCommand(),
 		newPageScreenshotCommand(),
+		newPageIsCommand(),
+		newPageJSCommand(),
+		newPageCheckCommand(),
+		newPageUncheckCommand(),
+		newPageHoverCommand(),
+		newPageFocusCommand(),
+		newPageUploadCommand(),
+		newPageDialogAcceptCommand(),
+		newPageDialogDismissCommand(),
 	)
 	return cmd
 }
@@ -127,7 +137,53 @@ func newPageClickCommand() *cobra.Command {
 }
 
 func newPageTypeCommand() *cobra.Command {
-	return newPageActionCommand("type", true)
+	var sid string
+	var selector string
+	var ref string
+	var text string
+	cmd := &cobra.Command{
+		Use:   "type",
+		Short: "Type text into an element on the current page",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateSelectorOrRef(cmd, selector, ref); err != nil {
+				return err
+			}
+			if !cmd.Flags().Changed("text") {
+				return writeInvalidArgs(cmd, "text required")
+			}
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			svc, err := pageServiceForRecord(ctx, record, ref != "")
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			target := page.ActionTarget{SID: sid, Selector: selector, Ref: ref}
+			if err := svc.TypeTarget(ctx, target, text); err != nil {
+				return writePageActionError(cmd, sid, selector, ref, err)
+			}
+
+			payload := map[string]any{"ok": true, "sid": sid, "text_len": len(text)}
+			if selector != "" {
+				payload["selector"] = selector
+			}
+			if ref != "" {
+				payload["ref"] = ref
+			}
+			return writeJSON(cmd, payload)
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().StringVar(&selector, "selector", "", "css selector")
+	cmd.Flags().StringVar(&ref, "ref", "", "snapshot ref")
+	cmd.Flags().StringVar(&text, "text", "", "text to type")
+	configureAgentHelp(cmd)
+	return cmd
 }
 
 func newPageSnapshotCommand() *cobra.Command {
@@ -295,6 +351,7 @@ func newPagePressCommand() *cobra.Command {
 func newPageWaitCommand() *cobra.Command {
 	var sid string
 	var selector string
+	var ref string
 	var text string
 	var url string
 	var load string
@@ -303,8 +360,11 @@ func newPageWaitCommand() *cobra.Command {
 		Short: "Wait for a page condition",
 		Args:  noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if countNonEmpty(selector, text, url, load) != 1 {
+			if countNonEmpty(selector, ref, text, url, load) != 1 {
 				return writeInvalidArgs(cmd, "exactly one wait condition required")
+			}
+			if selector != "" && ref != "" {
+				return writeInvalidArgs(cmd, "selector and ref are mutually exclusive")
 			}
 			record, err := lookupSession(cmd, sid)
 			if err != nil {
@@ -313,11 +373,12 @@ func newPageWaitCommand() *cobra.Command {
 			ctx, cancel := pageOperationContext()
 			defer cancel()
 
-			svc, err := pageServiceForRecord(ctx, record, false)
+			svc, err := pageServiceForRecord(ctx, record, ref != "")
 			if err != nil {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
-			err = svc.Wait(ctx, page.WaitOptions{Target: page.ActionTarget{Selector: selector}, Text: text, URL: url, Load: load})
+
+			err = svc.Wait(ctx, page.WaitOptions{Target: page.ActionTarget{SID: sid, Selector: selector, Ref: ref}, Text: text, URL: url, Load: load})
 			if err != nil {
 				return writeError(cmd, "page_wait_timeout", err.Error(), map[string]any{"sid": sid})
 			}
@@ -326,6 +387,7 @@ func newPageWaitCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
 	cmd.Flags().StringVar(&selector, "selector", "", "css selector")
+	cmd.Flags().StringVar(&ref, "ref", "", "snapshot ref")
 	cmd.Flags().StringVar(&text, "text", "", "text to wait for")
 	cmd.Flags().StringVar(&url, "url", "", "url substring or pattern")
 	cmd.Flags().StringVar(&load, "load", "", "load state")
@@ -454,6 +516,438 @@ func newPageScreenshotCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
 	cmd.Flags().StringVar(&path, "path", "", "artifact path")
+	configureAgentHelp(cmd)
+	return cmd
+}
+
+func newPageSelectCommand() *cobra.Command {
+	var sid string
+	var selector string
+	var ref string
+	var value string
+	cmd := &cobra.Command{
+		Use:   "select",
+		Short: "Select an option in a dropdown on the current page",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateSelectorOrRef(cmd, selector, ref); err != nil {
+				return err
+			}
+			if value == "" {
+				return writeInvalidArgs(cmd, "value required")
+			}
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			svc, err := pageServiceForRecord(ctx, record, true)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			target := page.ActionTarget{SID: sid, Selector: selector, Ref: ref}
+			if err := svc.Select(ctx, target, value); err != nil {
+				return writePageActionError(cmd, sid, selector, ref, err)
+			}
+
+			payload := map[string]any{"ok": true, "sid": sid}
+			if selector != "" {
+				payload["selector"] = selector
+			}
+			if ref != "" {
+				payload["ref"] = ref
+			}
+			return writeJSON(cmd, payload)
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().StringVar(&selector, "selector", "", "css selector")
+	cmd.Flags().StringVar(&ref, "ref", "", "snapshot ref")
+	cmd.Flags().StringVar(&value, "value", "", "option value or visible text")
+	configureAgentHelp(cmd)
+	return cmd
+}
+
+func newPageIsCommand() *cobra.Command {
+	var sid string
+	var selector string
+	var ref string
+	cmd := &cobra.Command{
+		Use:   "is PROP",
+		Short: "Check element state: visible, hidden, enabled, disabled, checked, editable, focused",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return writeInvalidArgs(cmd, "exactly one property is required")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			prop := args[0]
+			if err := validateSelectorOrRef(cmd, selector, ref); err != nil {
+				return err
+			}
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			svc, err := pageServiceForRecord(ctx, record, true)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			target := page.ActionTarget{SID: sid, Selector: selector, Ref: ref}
+			result, err := svc.Is(ctx, target, prop)
+			if err != nil {
+				return writePageActionError(cmd, sid, selector, ref, err)
+			}
+			return writeJSON(cmd, map[string]any{"ok": true, "sid": sid, "prop": prop, "value": result})
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().StringVar(&selector, "selector", "", "css selector")
+	cmd.Flags().StringVar(&ref, "ref", "", "snapshot ref")
+	configureAgentHelp(cmd)
+	return cmd
+}
+
+func newPageJSCommand() *cobra.Command {
+	var sid string
+	var expr string
+	var file string
+	cmd := &cobra.Command{
+		Use:   "js",
+		Short: "Execute JavaScript on the current page",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if expr == "" && file == "" {
+				return writeInvalidArgs(cmd, "expr or file required")
+			}
+			if expr != "" && file != "" {
+				return writeInvalidArgs(cmd, "expr and file are mutually exclusive")
+			}
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			svc, err := pageServiceForRecord(ctx, record, false)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			expression := expr
+			if file != "" {
+				data, err := os.ReadFile(file)
+				if err != nil {
+					return writeError(cmd, "page_action_failed", err.Error(), map[string]any{"sid": sid})
+				}
+				expression = string(data)
+			}
+			result, err := svc.Eval(ctx, expression)
+			if err != nil {
+				return writeError(cmd, "page_action_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			return writeJSON(cmd, map[string]any{"ok": true, "sid": sid, "result": result})
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().StringVar(&expr, "expr", "", "JavaScript expression")
+	cmd.Flags().StringVar(&file, "file", "", "JavaScript file to execute")
+	configureAgentHelp(cmd)
+	return cmd
+}
+
+func newPageCheckCommand() *cobra.Command {
+	var sid string
+	var selector string
+	var ref string
+	cmd := &cobra.Command{
+		Use:   "check",
+		Short: "Check a checkbox or radio button on the current page",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateSelectorOrRef(cmd, selector, ref); err != nil {
+				return err
+			}
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			svc, err := pageServiceForRecord(ctx, record, true)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			target := page.ActionTarget{SID: sid, Selector: selector, Ref: ref}
+			if err := svc.Check(ctx, target); err != nil {
+				return writePageActionError(cmd, sid, selector, ref, err)
+			}
+
+			payload := map[string]any{"ok": true, "sid": sid}
+			if selector != "" {
+				payload["selector"] = selector
+			}
+			if ref != "" {
+				payload["ref"] = ref
+			}
+			return writeJSON(cmd, payload)
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().StringVar(&selector, "selector", "", "css selector")
+	cmd.Flags().StringVar(&ref, "ref", "", "snapshot ref")
+	configureAgentHelp(cmd)
+	return cmd
+}
+
+func newPageUncheckCommand() *cobra.Command {
+	var sid string
+	var selector string
+	var ref string
+	cmd := &cobra.Command{
+		Use:   "uncheck",
+		Short: "Uncheck a checkbox on the current page",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateSelectorOrRef(cmd, selector, ref); err != nil {
+				return err
+			}
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			svc, err := pageServiceForRecord(ctx, record, true)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			target := page.ActionTarget{SID: sid, Selector: selector, Ref: ref}
+			if err := svc.Uncheck(ctx, target); err != nil {
+				return writePageActionError(cmd, sid, selector, ref, err)
+			}
+
+			payload := map[string]any{"ok": true, "sid": sid}
+			if selector != "" {
+				payload["selector"] = selector
+			}
+			if ref != "" {
+				payload["ref"] = ref
+			}
+			return writeJSON(cmd, payload)
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().StringVar(&selector, "selector", "", "css selector")
+	cmd.Flags().StringVar(&ref, "ref", "", "snapshot ref")
+	configureAgentHelp(cmd)
+	return cmd
+}
+
+func newPageHoverCommand() *cobra.Command {
+	var sid string
+	var selector string
+	var ref string
+	cmd := &cobra.Command{
+		Use:   "hover",
+		Short: "Hover over an element on the current page",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateSelectorOrRef(cmd, selector, ref); err != nil {
+				return err
+			}
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			svc, err := pageServiceForRecord(ctx, record, true)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			target := page.ActionTarget{SID: sid, Selector: selector, Ref: ref}
+			if err := svc.Hover(ctx, target); err != nil {
+				return writePageActionError(cmd, sid, selector, ref, err)
+			}
+
+			payload := map[string]any{"ok": true, "sid": sid}
+			if selector != "" {
+				payload["selector"] = selector
+			}
+			if ref != "" {
+				payload["ref"] = ref
+			}
+			return writeJSON(cmd, payload)
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().StringVar(&selector, "selector", "", "css selector")
+	cmd.Flags().StringVar(&ref, "ref", "", "snapshot ref")
+	configureAgentHelp(cmd)
+	return cmd
+}
+
+func newPageFocusCommand() *cobra.Command {
+	var sid string
+	var selector string
+	var ref string
+	cmd := &cobra.Command{
+		Use:   "focus",
+		Short: "Focus an element on the current page",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateSelectorOrRef(cmd, selector, ref); err != nil {
+				return err
+			}
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			svc, err := pageServiceForRecord(ctx, record, true)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			target := page.ActionTarget{SID: sid, Selector: selector, Ref: ref}
+			if err := svc.Focus(ctx, target); err != nil {
+				return writePageActionError(cmd, sid, selector, ref, err)
+			}
+
+			payload := map[string]any{"ok": true, "sid": sid}
+			if selector != "" {
+				payload["selector"] = selector
+			}
+			if ref != "" {
+				payload["ref"] = ref
+			}
+			return writeJSON(cmd, payload)
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().StringVar(&selector, "selector", "", "css selector")
+	cmd.Flags().StringVar(&ref, "ref", "", "snapshot ref")
+	configureAgentHelp(cmd)
+	return cmd
+}
+
+func newPageUploadCommand() *cobra.Command {
+	var sid string
+	var selector string
+	var ref string
+	var filePath string
+	cmd := &cobra.Command{
+		Use:   "upload",
+		Short: "Upload files to a file input on the current page",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateSelectorOrRef(cmd, selector, ref); err != nil {
+				return err
+			}
+			if filePath == "" {
+				return writeInvalidArgs(cmd, "file required")
+			}
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			svc, err := pageServiceForRecord(ctx, record, true)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			target := page.ActionTarget{SID: sid, Selector: selector, Ref: ref}
+			if err := svc.Upload(ctx, target, []string{filePath}); err != nil {
+				return writePageActionError(cmd, sid, selector, ref, err)
+			}
+
+			payload := map[string]any{"ok": true, "sid": sid}
+			if selector != "" {
+				payload["selector"] = selector
+			}
+			if ref != "" {
+				payload["ref"] = ref
+			}
+			return writeJSON(cmd, payload)
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().StringVar(&selector, "selector", "", "css selector")
+	cmd.Flags().StringVar(&ref, "ref", "", "snapshot ref")
+	cmd.Flags().StringVar(&filePath, "file", "", "path to file")
+	configureAgentHelp(cmd)
+	return cmd
+}
+
+func newPageDialogAcceptCommand() *cobra.Command {
+	var sid string
+	var text string
+	cmd := &cobra.Command{
+		Use:   "dialog-accept",
+		Short: "Auto-accept the next browser dialog (alert/confirm/prompt)",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			svc, err := pageServiceForRecord(ctx, record, false)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			if err := svc.DialogAccept(ctx, text); err != nil {
+				return writeError(cmd, "page_action_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			return writeJSON(cmd, map[string]any{"ok": true, "sid": sid})
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().StringVar(&text, "text", "", "prompt response text")
+	configureAgentHelp(cmd)
+	return cmd
+}
+
+func newPageDialogDismissCommand() *cobra.Command {
+	var sid string
+	cmd := &cobra.Command{
+		Use:   "dialog-dismiss",
+		Short: "Auto-dismiss the next browser dialog (alert/confirm/prompt)",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			svc, err := pageServiceForRecord(ctx, record, false)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			if err := svc.DialogDismiss(ctx); err != nil {
+				return writeError(cmd, "page_action_failed", err.Error(), map[string]any{"sid": sid})
+			}
+			return writeJSON(cmd, map[string]any{"ok": true, "sid": sid})
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
 	configureAgentHelp(cmd)
 	return cmd
 }

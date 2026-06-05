@@ -73,6 +73,26 @@ func (f *fakeDriver) Get(ctx context.Context, options cdp.GetOptions) (string, e
 	return f.getResult, nil
 }
 
+func (f *fakeDriver) Select(ctx context.Context, selector, value string) error { return nil }
+
+func (f *fakeDriver) Is(ctx context.Context, selector, prop string) (bool, error) { return true, nil }
+
+func (f *fakeDriver) Eval(ctx context.Context, expression string) (string, error) { return `"ok"`, nil }
+
+func (f *fakeDriver) Check(ctx context.Context, selector string) error { return nil }
+
+func (f *fakeDriver) Uncheck(ctx context.Context, selector string) error { return nil }
+
+func (f *fakeDriver) Hover(ctx context.Context, selector string) error { return nil }
+
+func (f *fakeDriver) Focus(ctx context.Context, selector string) error { return nil }
+
+func (f *fakeDriver) Upload(ctx context.Context, selector string, files []string) error { return nil }
+
+func (f *fakeDriver) DialogAccept(ctx context.Context, promptText string) error { return nil }
+
+func (f *fakeDriver) DialogDismiss(ctx context.Context) error { return nil }
+
 func (f *fakeDriver) Screenshot(ctx context.Context, path string) error {
 	f.screenshotPath = path
 	return nil

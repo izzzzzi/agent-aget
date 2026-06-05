@@ -303,6 +303,368 @@ func TestPageGetRejectsUnsupportedKindBeforeSessionLookup(t *testing.T) {
 	assertInvalidArgsJSON(t, stderr)
 }
 
+func TestPageSelectCallsDriver(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{snapshot: cdp.SnapshotState{
+		URL: "https://example.com",
+		Elements: []cdp.Element{
+			{Kind: "select", Selector: "select[name=direction]", Visible: true, Enabled: true},
+		},
+	}}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	if _, stderr, err := executeForTest("page", "snapshot", "-s", "abc12345"); err != nil {
+		t.Fatalf("snapshot failed: %v stderr=%s", err, stderr)
+	}
+	stdout, stderr, err := executeForTest("page", "select", "-s", "abc12345", "--ref", "@i1", "--value", "Option A")
+	if err != nil {
+		t.Fatalf("page select failed: %v stderr=%s", err, stderr)
+	}
+	if driver.selectedValue != "Option A" {
+		t.Fatalf("selectedValue = %q", driver.selectedValue)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["ok"] != true || got["sid"] != "abc12345" || got["ref"] != "@i1" {
+		t.Fatalf("response = %#v", got)
+	}
+}
+
+func TestPageSelectRequiresValue(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	stdout, stderr, err := executeForTest("page", "select", "-s", "abc12345", "--selector", "select[name=direction]")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	assertInvalidArgsJSON(t, stderr)
+}
+
+func TestPageIsReturnsState(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{snapshot: cdp.SnapshotState{
+		URL: "https://example.com",
+		Elements: []cdp.Element{
+			{Kind: "button", Selector: "#btn", Visible: true, Enabled: true},
+		},
+	}, isResult: true}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	if _, stderr, err := executeForTest("page", "snapshot", "-s", "abc12345"); err != nil {
+		t.Fatalf("snapshot failed: %v stderr=%s", err, stderr)
+	}
+	stdout, stderr, err := executeForTest("page", "is", "-s", "abc12345", "--ref", "@e1", "visible")
+	if err != nil {
+		t.Fatalf("page is failed: %v stderr=%s", err, stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["value"] != true {
+		t.Fatalf("value = %v", got["value"])
+	}
+}
+
+func TestPageJSCallsEval(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	stdout, stderr, err := executeForTest("page", "js", "-s", "abc12345", "--expr", "document.title")
+	if err != nil {
+		t.Fatalf("page js failed: %v stderr=%s", err, stderr)
+	}
+	if driver.evalExpression != "document.title" {
+		t.Fatalf("evalExpression = %q", driver.evalExpression)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got["result"]; !ok {
+		t.Fatalf("response missing result: %#v", got)
+	}
+}
+
+func TestPageCheckCallsDriver(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{snapshot: cdp.SnapshotState{
+		URL: "https://example.com",
+		Elements: []cdp.Element{
+			{Kind: "input", Type: "checkbox", Selector: "input[name=agree]", Visible: true, Enabled: true},
+		},
+	}}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	if _, stderr, err := executeForTest("page", "snapshot", "-s", "abc12345"); err != nil {
+		t.Fatalf("snapshot failed: %v stderr=%s", err, stderr)
+	}
+	stdout, stderr, err := executeForTest("page", "check", "-s", "abc12345", "--ref", "@i1")
+	if err != nil {
+		t.Fatalf("page check failed: %v stderr=%s", err, stderr)
+	}
+	if driver.checkedSelector == "" {
+		t.Fatal("check was not called")
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["ok"] != true {
+		t.Fatalf("response = %#v", got)
+	}
+}
+
+func TestPageUncheckCallsDriver(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{snapshot: cdp.SnapshotState{
+		URL: "https://example.com",
+		Elements: []cdp.Element{
+			{Kind: "input", Type: "checkbox", Selector: "input[name=agree]", Visible: true, Enabled: true},
+		},
+	}}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	if _, stderr, err := executeForTest("page", "snapshot", "-s", "abc12345"); err != nil {
+		t.Fatalf("snapshot failed: %v stderr=%s", err, stderr)
+	}
+	stdout, stderr, err := executeForTest("page", "uncheck", "-s", "abc12345", "--ref", "@i1")
+	if err != nil {
+		t.Fatalf("page uncheck failed: %v stderr=%s", err, stderr)
+	}
+	if driver.uncheckedSelector == "" {
+		t.Fatal("uncheck was not called")
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["ok"] != true {
+		t.Fatalf("response = %#v", got)
+	}
+}
+
+func TestPageHoverCallsDriver(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{snapshot: cdp.SnapshotState{
+		URL: "https://example.com",
+		Elements: []cdp.Element{
+			{Kind: "button", Selector: ".menu-btn", Visible: true, Enabled: true},
+		},
+	}}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	if _, stderr, err := executeForTest("page", "snapshot", "-s", "abc12345"); err != nil {
+		t.Fatalf("snapshot failed: %v stderr=%s", err, stderr)
+	}
+	stdout, stderr, err := executeForTest("page", "hover", "-s", "abc12345", "--ref", "@e1")
+	if err != nil {
+		t.Fatalf("page hover failed: %v stderr=%s", err, stderr)
+	}
+	if driver.hoveredSelector == "" {
+		t.Fatal("hover was not called")
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["ok"] != true {
+		t.Fatalf("response = %#v", got)
+	}
+}
+
+func TestPageFocusCallsDriver(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{snapshot: cdp.SnapshotState{
+		URL: "https://example.com",
+		Elements: []cdp.Element{
+			{Kind: "input", Selector: "input[name=q]", Visible: true, Enabled: true},
+		},
+	}}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	if _, stderr, err := executeForTest("page", "snapshot", "-s", "abc12345"); err != nil {
+		t.Fatalf("snapshot failed: %v stderr=%s", err, stderr)
+	}
+	stdout, stderr, err := executeForTest("page", "focus", "-s", "abc12345", "--ref", "@i1")
+	if err != nil {
+		t.Fatalf("page focus failed: %v stderr=%s", err, stderr)
+	}
+	if driver.focusedSelector == "" {
+		t.Fatal("focus was not called")
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["ok"] != true {
+		t.Fatalf("response = %#v", got)
+	}
+}
+
+func TestPageUploadCallsDriver(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{snapshot: cdp.SnapshotState{
+		URL: "https://example.com",
+		Elements: []cdp.Element{
+			{Kind: "input", Type: "file", Selector: "input[type=file]", Visible: true, Enabled: true},
+		},
+	}}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	if _, stderr, err := executeForTest("page", "snapshot", "-s", "abc12345"); err != nil {
+		t.Fatalf("snapshot failed: %v stderr=%s", err, stderr)
+	}
+	stdout, stderr, err := executeForTest("page", "upload", "-s", "abc12345", "--ref", "@i1", "--file", "/tmp/test.pdf")
+	if err != nil {
+		t.Fatalf("page upload failed: %v stderr=%s", err, stderr)
+	}
+	if driver.uploadedSelector == "" {
+		t.Fatal("upload was not called")
+	}
+	if len(driver.uploadedFiles) != 1 || driver.uploadedFiles[0] != "/tmp/test.pdf" {
+		t.Fatalf("uploadedFiles = %v", driver.uploadedFiles)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["ok"] != true {
+		t.Fatalf("response = %#v", got)
+	}
+}
+
+func TestPageDialogAcceptCallsDriver(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	stdout, stderr, err := executeForTest("page", "dialog-accept", "-s", "abc12345")
+	if err != nil {
+		t.Fatalf("page dialog-accept failed: %v stderr=%s", err, stderr)
+	}
+	if !driver.dialogAccepted {
+		t.Fatal("dialog-accept was not called")
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["ok"] != true {
+		t.Fatalf("response = %#v", got)
+	}
+}
+
+func TestPageDialogDismissCallsDriver(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	stdout, stderr, err := executeForTest("page", "dialog-dismiss", "-s", "abc12345")
+	if err != nil {
+		t.Fatalf("page dialog-dismiss failed: %v stderr=%s", err, stderr)
+	}
+	if !driver.dialogDismissed {
+		t.Fatal("dialog-dismiss was not called")
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["ok"] != true {
+		t.Fatalf("response = %#v", got)
+	}
+}
+
+func TestPageTypeByRefUsesSavedSnapshot(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{snapshot: cdp.SnapshotState{
+		URL: "https://example.com",
+		Elements: []cdp.Element{
+			{Kind: "input", Selector: "input[name=q]", Visible: true, Enabled: true},
+		},
+	}}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	if _, stderr, err := executeForTest("page", "snapshot", "-s", "abc12345"); err != nil {
+		t.Fatalf("snapshot failed: %v stderr=%s", err, stderr)
+	}
+	stdout, stderr, err := executeForTest("page", "type", "-s", "abc12345", "--ref", "@i1", "--text", "hello")
+	if err != nil {
+		t.Fatalf("type by ref failed: %v stderr=%s", err, stderr)
+	}
+	if driver.typedSelector != "input[name=q]" || driver.typedText != "hello" {
+		t.Fatalf("typed selector/text = %q/%q", driver.typedSelector, driver.typedText)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["ok"] != true || got["ref"] != "@i1" {
+		t.Fatalf("response = %#v", got)
+	}
+}
+
+func TestPageWaitByRefUsesSavedSnapshot(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{snapshot: cdp.SnapshotState{
+		URL: "https://example.com",
+		Elements: []cdp.Element{
+			{Kind: "button", Selector: "#ready-btn", Visible: true, Enabled: true},
+		},
+	}}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	if _, stderr, err := executeForTest("page", "snapshot", "-s", "abc12345"); err != nil {
+		t.Fatalf("snapshot failed: %v stderr=%s", err, stderr)
+	}
+	if _, stderr, err := executeForTest("page", "wait", "-s", "abc12345", "--ref", "@e1"); err != nil {
+		t.Fatalf("wait by ref failed: %v stderr=%s", err, stderr)
+	}
+	if driver.waitOptions.Selector != "#ready-btn" {
+		t.Fatalf("wait selector = %q", driver.waitOptions.Selector)
+	}
+}
+
 func saveTestSession(t *testing.T, sid, debugURL string) {
 	t.Helper()
 	now := time.Now().UTC()
@@ -343,20 +705,34 @@ func replacePageCommandTimeoutForTest(timeout time.Duration) func() {
 }
 
 type recordingDriver struct {
-	debugURL       string
-	snapshot       cdp.SnapshotState
-	clicked        string
-	typedSelector  string
-	typedText      string
-	filledSelector string
-	filledText     string
-	pressedKey     string
-	scrolledDir    string
-	scrolledPixels int
-	waitOptions    cdp.WaitOptions
-	getOptions     cdp.GetOptions
-	getValue       string
-	closed         bool
+	debugURL          string
+	snapshot          cdp.SnapshotState
+	clicked           string
+	typedSelector     string
+	typedText         string
+	filledSelector    string
+	filledText        string
+	selectedSelector  string
+	selectedValue     string
+	pressedKey        string
+	scrolledDir       string
+	scrolledPixels    int
+	waitOptions       cdp.WaitOptions
+	getOptions        cdp.GetOptions
+	getValue          string
+	isProp            string
+	isResult          bool
+	evalExpression    string
+	checkedSelector   string
+	uncheckedSelector string
+	hoveredSelector   string
+	focusedSelector   string
+	uploadedSelector  string
+	uploadedFiles     []string
+	dialogAccepted    bool
+	dialogText        string
+	dialogDismissed   bool
+	closed            bool
 }
 
 func (d *recordingDriver) Read(context.Context) (cdp.PageState, error) {
@@ -403,6 +779,59 @@ func (d *recordingDriver) Wait(_ context.Context, options cdp.WaitOptions) error
 func (d *recordingDriver) Get(_ context.Context, options cdp.GetOptions) (string, error) {
 	d.getOptions = options
 	return d.getValue, nil
+}
+
+func (d *recordingDriver) Select(_ context.Context, selector, value string) error {
+	d.selectedSelector = selector
+	d.selectedValue = value
+	return nil
+}
+
+func (d *recordingDriver) Is(_ context.Context, selector, prop string) (bool, error) {
+	d.isProp = prop
+	return d.isResult, nil
+}
+
+func (d *recordingDriver) Eval(_ context.Context, expression string) (string, error) {
+	d.evalExpression = expression
+	return `"ok"`, nil
+}
+
+func (d *recordingDriver) Check(_ context.Context, selector string) error {
+	d.checkedSelector = selector
+	return nil
+}
+
+func (d *recordingDriver) Uncheck(_ context.Context, selector string) error {
+	d.uncheckedSelector = selector
+	return nil
+}
+
+func (d *recordingDriver) Hover(_ context.Context, selector string) error {
+	d.hoveredSelector = selector
+	return nil
+}
+
+func (d *recordingDriver) Focus(_ context.Context, selector string) error {
+	d.focusedSelector = selector
+	return nil
+}
+
+func (d *recordingDriver) Upload(_ context.Context, selector string, files []string) error {
+	d.uploadedSelector = selector
+	d.uploadedFiles = files
+	return nil
+}
+
+func (d *recordingDriver) DialogAccept(_ context.Context, promptText string) error {
+	d.dialogAccepted = true
+	d.dialogText = promptText
+	return nil
+}
+
+func (d *recordingDriver) DialogDismiss(_ context.Context) error {
+	d.dialogDismissed = true
+	return nil
 }
 
 func (d *recordingDriver) Screenshot(context.Context, string) error {
@@ -454,6 +883,46 @@ func (d *blockingDriver) Wait(context.Context, cdp.WaitOptions) error {
 
 func (d *blockingDriver) Get(context.Context, cdp.GetOptions) (string, error) {
 	return "", errors.New("unexpected get")
+}
+
+func (d *blockingDriver) Select(context.Context, string, string) error {
+	return errors.New("unexpected select")
+}
+
+func (d *blockingDriver) Is(context.Context, string, string) (bool, error) {
+	return false, errors.New("unexpected is")
+}
+
+func (d *blockingDriver) Eval(context.Context, string) (string, error) {
+	return "", errors.New("unexpected eval")
+}
+
+func (d *blockingDriver) Check(context.Context, string) error {
+	return errors.New("unexpected check")
+}
+
+func (d *blockingDriver) Uncheck(context.Context, string) error {
+	return errors.New("unexpected uncheck")
+}
+
+func (d *blockingDriver) Hover(context.Context, string) error {
+	return errors.New("unexpected hover")
+}
+
+func (d *blockingDriver) Focus(context.Context, string) error {
+	return errors.New("unexpected focus")
+}
+
+func (d *blockingDriver) Upload(context.Context, string, []string) error {
+	return errors.New("unexpected upload")
+}
+
+func (d *blockingDriver) DialogAccept(context.Context, string) error {
+	return errors.New("unexpected dialog-accept")
+}
+
+func (d *blockingDriver) DialogDismiss(context.Context) error {
+	return errors.New("unexpected dialog-dismiss")
 }
 
 func (d *blockingDriver) Screenshot(context.Context, string) error {

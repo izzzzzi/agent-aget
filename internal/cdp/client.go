@@ -47,10 +47,20 @@ type Driver interface {
 	Click(ctx context.Context, selector string) error
 	Type(ctx context.Context, selector, text string) error
 	Fill(ctx context.Context, selector, text string) error
+	Select(ctx context.Context, selector, value string) error
 	Press(ctx context.Context, key string) error
 	Scroll(ctx context.Context, direction string, pixels int) error
 	Wait(ctx context.Context, options WaitOptions) error
 	Get(ctx context.Context, options GetOptions) (string, error)
+	Is(ctx context.Context, selector, prop string) (bool, error)
+	Eval(ctx context.Context, expression string) (string, error)
+	Check(ctx context.Context, selector string) error
+	Uncheck(ctx context.Context, selector string) error
+	Hover(ctx context.Context, selector string) error
+	Focus(ctx context.Context, selector string) error
+	Upload(ctx context.Context, selector string, files []string) error
+	DialogAccept(ctx context.Context, promptText string) error
+	DialogDismiss(ctx context.Context) error
 	Screenshot(ctx context.Context, path string) error
 	Close(ctx context.Context) error
 }

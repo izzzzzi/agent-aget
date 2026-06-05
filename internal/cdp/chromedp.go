@@ -11,7 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chromedp/cdproto/target"
+	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/page"
+	cdptarget "github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
 )
 
@@ -54,19 +56,19 @@ type pageTarget struct {
 	URL  string `json:"url"`
 }
 
-func fetchFirstPageTargetID(ctx context.Context, debugURL string) (target.ID, error) {
+func fetchFirstPageTargetID(ctx context.Context, debugURL string) (cdptarget.ID, error) {
 	targets, err := fetchPageTargets(ctx, debugURL)
 	if err != nil {
 		return "", err
 	}
 	for _, candidate := range targets {
 		if candidate.Type == "page" && candidate.ID != "" && candidate.URL != "about:blank" {
-			return target.ID(candidate.ID), nil
+			return cdptarget.ID(candidate.ID), nil
 		}
 	}
 	for _, candidate := range targets {
 		if candidate.Type == "page" && candidate.ID != "" {
-			return target.ID(candidate.ID), nil
+			return cdptarget.ID(candidate.ID), nil
 		}
 	}
 	return "", fmt.Errorf("no page target found at %s", strings.TrimRight(debugURL, "/")+"/json/list")
@@ -232,7 +234,8 @@ func snapshotScript() string {
 	    const tag = (el.tagName || '').toLowerCase();
 	    if (role === 'button' || tag === 'button') return 'button';
 	    if (role === 'link' || tag === 'a') return 'link';
-	    if (tag === 'input' || tag === 'textarea' || tag === 'select') return 'input';
+	    if (tag === 'select') return 'select';
+	    if (tag === 'input' || tag === 'textarea') return 'input';
 	    return role || tag;
 	  };
 	  const textFor = (el) => {
@@ -292,6 +295,90 @@ func (d *ChromeDPDriver) Fill(ctx context.Context, selector, text string) error 
 		chromedp.SetValue(selector, "", chromedp.ByQuery),
 		chromedp.SendKeys(selector, text, chromedp.ByQuery),
 	)
+}
+
+func (d *ChromeDPDriver) Select(ctx context.Context, selector, value string) error {
+	escaped := strings.ReplaceAll(value, `\`, `\\`)
+	escaped = strings.ReplaceAll(escaped, "`", "\\`")
+	script := fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e||e.tagName!=='SELECT')throw new Error('not a select element');e.value=%q;e.dispatchEvent(new Event('change',{bubbles:true}));e.dispatchEvent(new Event('input',{bubbles:true}));})()`, selector, escaped)
+	return d.runActions(ctx, chromedp.Evaluate(script, nil))
+}
+
+func (d *ChromeDPDriver) Is(ctx context.Context, selector, prop string) (bool, error) {
+	checks := map[string]string{
+		"visible": fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e)return false;const r=e.getBoundingClientRect();const s=window.getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none';})()`, selector),
+		"hidden":  fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e)return true;const r=e.getBoundingClientRect();const s=window.getComputedStyle(e);return r.width===0||r.height===0||s.visibility==='hidden'||s.display==='none';})()`, selector),
+		"enabled":  fmt.Sprintf(`(()=>{const e=document.querySelector(%q);return e!==null&&!e.disabled&&e.getAttribute('aria-disabled')!=='true';})()`, selector),
+		"disabled": fmt.Sprintf(`(()=>{const e=document.querySelector(%q);return e===null||e.disabled||e.getAttribute('aria-disabled')==='true';})()`, selector),
+		"checked":  fmt.Sprintf(`(()=>{const e=document.querySelector(%q);return e!==null&&(e.checked===true||e.getAttribute('aria-checked')==='true');})()`, selector),
+		"editable": fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e)return false;if(e.readOnly||e.disabled)return false;const t=e.tagName;return t==='INPUT'||t==='TEXTAREA'||t==='SELECT'||e.getAttribute('contenteditable')==='true';})()`, selector),
+		"focused": fmt.Sprintf(`document.querySelector(%q)===document.activeElement`, selector),
+	}
+	script, ok := checks[prop]
+	if !ok {
+		return false, fmt.Errorf("unsupported is prop %q", prop)
+	}
+	var result bool
+	return result, d.runActions(ctx, chromedp.Evaluate(script, &result))
+}
+
+func (d *ChromeDPDriver) Eval(ctx context.Context, expression string) (string, error) {
+	var out json.RawMessage
+	if err := d.runActions(ctx, chromedp.Evaluate(expression, &out)); err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+func (d *ChromeDPDriver) Check(ctx context.Context, selector string) error {
+	script := fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(e&&!e.checked){e.click()}})()`, selector)
+	return d.runActions(ctx, chromedp.Evaluate(script, nil))
+}
+
+func (d *ChromeDPDriver) Uncheck(ctx context.Context, selector string) error {
+	script := fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(e&&e.checked){e.click()}})()`, selector)
+	return d.runActions(ctx, chromedp.Evaluate(script, nil))
+}
+
+func (d *ChromeDPDriver) Hover(ctx context.Context, selector string) error {
+	script := fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e)throw new Error('element not found');['mouseover','mouseenter','mousemove'].forEach(t=>e.dispatchEvent(new MouseEvent(t,{bubbles:true,cancelable:true})));})()`, selector)
+	return d.runActions(ctx, chromedp.Evaluate(script, nil))
+}
+
+func (d *ChromeDPDriver) Focus(ctx context.Context, selector string) error {
+	return d.runActions(ctx, chromedp.Focus(selector, chromedp.ByQuery))
+}
+
+func (d *ChromeDPDriver) Upload(ctx context.Context, selector string, files []string) error {
+	return d.runActions(ctx, chromedp.SetUploadFiles(selector, files, chromedp.ByQuery))
+}
+
+func (d *ChromeDPDriver) DialogAccept(ctx context.Context, promptText string) error {
+	chromedp.ListenTarget(d.ctx, func(ev interface{}) {
+		switch e := ev.(type) {
+		case *page.EventJavascriptDialogOpening:
+			go func() {
+				action := page.HandleJavaScriptDialog(true)
+				if e.Type == page.DialogTypePrompt && promptText != "" {
+					action.PromptText = promptText
+				}
+				_ = action.Do(cdp.WithExecutor(d.ctx, chromedp.FromContext(d.ctx).Browser))
+			}()
+		}
+	})
+	return nil
+}
+
+func (d *ChromeDPDriver) DialogDismiss(ctx context.Context) error {
+	chromedp.ListenTarget(d.ctx, func(ev interface{}) {
+		switch ev.(type) {
+		case *page.EventJavascriptDialogOpening:
+			go func() {
+				_ = page.HandleJavaScriptDialog(false).Do(cdp.WithExecutor(d.ctx, chromedp.FromContext(d.ctx).Browser))
+			}()
+		}
+	})
+	return nil
 }
 
 func (d *ChromeDPDriver) Press(ctx context.Context, key string) error {
