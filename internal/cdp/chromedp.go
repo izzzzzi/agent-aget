@@ -306,13 +306,13 @@ func (d *ChromeDPDriver) Select(ctx context.Context, selector, value string) err
 
 func (d *ChromeDPDriver) Is(ctx context.Context, selector, prop string) (bool, error) {
 	checks := map[string]string{
-		"visible": fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e)return false;const r=e.getBoundingClientRect();const s=window.getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none';})()`, selector),
-		"hidden":  fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e)return true;const r=e.getBoundingClientRect();const s=window.getComputedStyle(e);return r.width===0||r.height===0||s.visibility==='hidden'||s.display==='none';})()`, selector),
+		"visible":  fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e)return false;const r=e.getBoundingClientRect();const s=window.getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none';})()`, selector),
+		"hidden":   fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e)return true;const r=e.getBoundingClientRect();const s=window.getComputedStyle(e);return r.width===0||r.height===0||s.visibility==='hidden'||s.display==='none';})()`, selector),
 		"enabled":  fmt.Sprintf(`(()=>{const e=document.querySelector(%q);return e!==null&&!e.disabled&&e.getAttribute('aria-disabled')!=='true';})()`, selector),
 		"disabled": fmt.Sprintf(`(()=>{const e=document.querySelector(%q);return e===null||e.disabled||e.getAttribute('aria-disabled')==='true';})()`, selector),
 		"checked":  fmt.Sprintf(`(()=>{const e=document.querySelector(%q);return e!==null&&(e.checked===true||e.getAttribute('aria-checked')==='true');})()`, selector),
 		"editable": fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e)return false;if(e.readOnly||e.disabled)return false;const t=e.tagName;return t==='INPUT'||t==='TEXTAREA'||t==='SELECT'||e.getAttribute('contenteditable')==='true';})()`, selector),
-		"focused": fmt.Sprintf(`document.querySelector(%q)===document.activeElement`, selector),
+		"focused":  fmt.Sprintf(`document.querySelector(%q)===document.activeElement`, selector),
 	}
 	script, ok := checks[prop]
 	if !ok {
