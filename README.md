@@ -58,6 +58,37 @@ aget open https://example.com -n example
 aget open https://example.com -n example --headful
 ```
 
+Чтобы зайти с куками (Netscape-файл или inline):
+
+```bash
+aget open https://example.com -n example --cookies cookies.txt
+aget open https://example.com -n example --cookies "session=abc; token=xyz"
+```
+
+## Профили
+
+Профиль — именованная директория Chromium с persistent cookies, localStorage и сессионными данными. Создайте профиль один раз и переиспользуйте в разных сессиях, сохраняя авторизованное состояние.
+
+```bash
+# Создать профиль с куками (браузер запустится, инжектит куки и закроется)
+aget profile create ozon --cookies ozon-cookies.txt
+
+# Создать пустой профиль (можно залогиниться вручную через --headful)
+aget profile create samokat
+
+# Просмотр
+aget profile list
+aget profile show ozon
+
+# Открыть страницу с профилем (куки уже внутри)
+aget open https://ozon.ru --profile ozon
+
+# Удалить профиль и все его данные
+aget profile delete ozon
+```
+
+Один профиль не может использоваться двумя сессиями одновременно — вторая попытка вернёт ошибку.
+
 ## Команды страницы
 
 Для действий сначала сделайте snapshot. Он возвращает refs вроде `@e1` и `@i1`:
@@ -75,19 +106,62 @@ aget page read -s SID
 aget page read -s SID --limit 40
 ```
 
-Кликнуть по CSS-селектору:
+### Ввод и взаимодействие
 
 ```bash
+# Клик по CSS-селектору
 aget page click -s SID --selector "button[type=submit]"
+
+# Посимвольный ввод
+aget page type -s SID --selector "input[name=q]" --text "agent browser workflow"
+aget page type -s SID --ref @i1 --text TEXT
+
+# Очистить и заполнить
+aget page fill -s SID --ref @i1 --text TEXT
+
+# Нажатие клавиши
+aget page press -s SID --key Enter
 ```
 
-Ввести текст:
+### Выпадающие списки, чекбоксы и радио
 
 ```bash
-aget page type -s SID --selector "input[name=q]" --text "agent browser workflow"
+# Выбор опции в <select>
+aget page select -s SID --ref @i1 --value VALUE
+aget page select -s SID --selector "select[name=direction]" --value "Backend"
+
+# Чекбоксы и радио (идемпотентно: click только если состояние другое)
+aget page check -s SID --ref @i1
+aget page uncheck -s SID --ref @i1
 ```
 
-Дождаться состояния, получить данные и прокрутить страницу:
+### Проверка состояния
+
+```bash
+aget page is -s SID --ref @i1 visible
+aget page is -s SID --ref @i1 checked
+aget page is -s SID --ref @i1 enabled
+aget page is -s SID --ref @e1 focused
+```
+
+### Наведение, фокус, загрузка файлов, диалоги
+
+```bash
+aget page hover -s SID --ref @e1
+aget page focus -s SID --ref @i1
+aget page upload -s SID --ref @i1 --file /path/to/resume.pdf
+aget page dialog-accept -s SID
+aget page dialog-accept -s SID --text "ответ"
+aget page dialog-dismiss -s SID
+```
+
+### Универсальный fallback
+
+```bash
+aget page js -s SID --expr "document.querySelector('input[name=x]').click()"
+```
+
+### Ожидание, чтение и скролл
 
 ```bash
 aget page wait -s SID --text "Ready"
@@ -139,8 +213,21 @@ aget session close -s SID
 ```bash
 aget page snapshot -s SID
 aget page fill -s SID --ref @i1 --text "agent@example.com"
+age page select -s SID --ref @i2 --value "Backend"
+aget page check -s SID --ref @i3
+aget page is -s SID --ref @i3 checked
 aget page press -s SID --key Enter
 aget page get -s SID url
+```
+
+Работа с профилем (куки сохраняются между сессиями):
+
+```bash
+aget profile create mysite --cookies cookies.txt
+aget open https://mysite.com --profile mysite
+aget page snapshot -s SID
+# ... действия на авторизованной странице ...
+aget session close -s SID
 ```
 
 Многошаговый сценарий одной командой:
@@ -197,6 +284,12 @@ aget page read -s SID --limit 80
 aget page snapshot -s SID
 aget page click -s SID --ref @e1
 aget page fill -s SID --ref @i1 --text TEXT
+aget page select -s SID --ref @i1 --value VALUE
+aget page check -s SID --ref @i1
+
+Проверяй состояние элементов:
+aget page is -s SID --ref @i1 visible
+aget page is -s SID --ref @i1 checked
 
 Если важен визуальный вид, состояние layout, canvas, captcha или страница плохо читается текстом, сделай screenshot:
 aget page screenshot -s SID --path ./page.png
@@ -204,6 +297,10 @@ aget page screenshot -s SID --path ./page.png
 Если refs недоступны, используй CSS-селекторы:
 aget page click -s SID --selector CSS
 aget page type -s SID --selector CSS --text TEXT
+
+Для сохранения авторизации между сессиями используй профили:
+aget profile create mysite --cookies cookies.txt
+aget open URL --profile mysite
 
 Для многошаговых workflow используй:
 aget page wait -s SID --text TEXT
@@ -223,15 +320,15 @@ aget session close -s SID
 Короткие варианты для популярных CLI:
 
 ```text
-Codex: Используй `aget` для браузерных задач. Начни с `aget open URL -n NAME`, сохрани returned sid, затем используй `aget page snapshot -s SID` и refs для `click/fill`; для текста используй `aget page read` или `aget page get`, для визуального состояния - `aget page screenshot`. Закрывай сессию через `aget session close -s SID`.
+Codex: Используй `aget` для браузерных задач. Начни с `aget open URL -n NAME`, сохрани returned sid, затем используй `aget page snapshot -s SID` и refs для `click/fill/select/check`; проверяй состояние через `aget page is`; для текста используй `aget page read` или `aget page get`, для визуального состояния - `aget page screenshot`. Для авторизованных сессий создай профиль: `aget profile create NAME --cookies FILE` затем `aget open URL --profile NAME`. Закрывай сессию через `aget session close -s SID`.
 ```
 
 ```text
-Claude Code: Перед browser-work установи/запусти `aget`. Для каждой страницы используй returned sid и JSON `next_commands`; начинай с `aget page snapshot`, действуй через refs, используй `page wait/get/scroll/batch` для многошаговых workflow и делай screenshot, когда важен layout или текстового чтения недостаточно.
+Claude Code: Перед browser-work установи/запусти `aget`. Для каждой страницы используй returned sid и JSON `next_commands`; начинай с `aget page snapshot`, действуй через refs (`fill/select/check/is`), используй `page wait/get/scroll/batch` для многошаговых workflow и делай screenshot, когда важен layout или текстового чтения недостаточно. Для постоянных кук — `aget profile create` и `open --profile`.
 ```
 
 ```text
-OpenCode: Используй `aget open`, затем `aget page snapshot/read/click/fill/wait/get/scroll/screenshot` с returned sid. Не смешивай sid разных браузерных сессий, запускай `aget doctor` для проблем с браузером и всегда закрывай session после завершения.
+OpenCode: Используй `aget open`, затем `aget page snapshot/read/click/fill/select/check/is/wait/get/scroll/screenshot` с returned sid. Не смешивай sid разных браузерных сессий, запускай `aget doctor` для проблем с браузером и всегда закрывай session после завершения.
 ```
 
 ## Переменные окружения

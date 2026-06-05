@@ -58,6 +58,37 @@ The browser runs headless by default. Use a visible window with:
 aget open https://example.com -n example --headful
 ```
 
+To open with cookies (Netscape file or inline):
+
+```bash
+aget open https://example.com -n example --cookies cookies.txt
+aget open https://example.com -n example --cookies "session=abc; token=xyz"
+```
+
+## Profiles
+
+A profile is a named Chromium user-data directory with persistent cookies, localStorage, and session data. Create a profile once and reuse it across sessions to keep logged-in state.
+
+```bash
+# Create a profile with cookies (browser launches, injects cookies, then closes)
+aget profile create ozon --cookies ozon-cookies.txt
+
+# Create an empty profile (login manually via --headful)
+aget profile create samokat
+
+# Inspect
+aget profile list
+aget profile show ozon
+
+# Open a page with a profile (cookies already inside)
+aget open https://ozon.ru --profile ozon
+
+# Delete a profile and all its data
+aget profile delete ozon
+```
+
+A profile cannot be used by two sessions simultaneously — the second attempt returns an error.
+
 ## Page Commands
 
 Start with a snapshot for actions. It returns refs like `@e1` and `@i1`:
@@ -75,19 +106,62 @@ aget page read -s SID
 aget page read -s SID --limit 40
 ```
 
-Click a CSS selector:
+### Input & Interaction
 
 ```bash
+# Click by CSS selector
 aget page click -s SID --selector "button[type=submit]"
+
+# Type text character by character
+aget page type -s SID --selector "input[name=q]" --text "agent browser workflow"
+aget page type -s SID --ref @i1 --text TEXT
+
+# Clear and fill
+aget page fill -s SID --ref @i1 --text TEXT
+
+# Press a key
+aget page press -s SID --key Enter
 ```
 
-Type text:
+### Dropdowns, Checkboxes & Radios
 
 ```bash
-aget page type -s SID --selector "input[name=q]" --text "agent browser workflow"
+# Select an option in a <select> element
+aget page select -s SID --ref @i1 --value VALUE
+aget page select -s SID --selector "select[name=direction]" --value "Backend"
+
+# Checkboxes and radios (idempotent: clicks only if state differs)
+aget page check -s SID --ref @i1
+aget page uncheck -s SID --ref @i1
 ```
 
-Wait for state, get values, and scroll the page:
+### State Verification
+
+```bash
+aget page is -s SID --ref @i1 visible
+aget page is -s SID --ref @i1 checked
+aget page is -s SID --ref @i1 enabled
+aget page is -s SID --ref @e1 focused
+```
+
+### Hover, Focus, File Upload, Dialogs
+
+```bash
+aget page hover -s SID --ref @e1
+aget page focus -s SID --ref @i1
+aget page upload -s SID --ref @i1 --file /path/to/resume.pdf
+aget page dialog-accept -s SID
+aget page dialog-accept -s SID --text "response"
+aget page dialog-dismiss -s SID
+```
+
+### Universal Fallback
+
+```bash
+aget page js -s SID --expr "document.querySelector('input[name=x]').click()"
+```
+
+### Wait, read & scroll:
 
 ```bash
 aget page wait -s SID --text "Ready"
@@ -139,8 +213,21 @@ Fill a form with snapshot refs:
 ```bash
 aget page snapshot -s SID
 aget page fill -s SID --ref @i1 --text "agent@example.com"
+aget page select -s SID --ref @i2 --value "Backend"
+aget page check -s SID --ref @i3
+aget page is -s SID --ref @i3 checked
 aget page press -s SID --key Enter
 aget page get -s SID url
+```
+
+Work with a profile (cookies persist across sessions):
+
+```bash
+aget profile create mysite --cookies cookies.txt
+aget open https://mysite.com --profile mysite
+aget page snapshot -s SID
+# ... actions on an authenticated page ...
+aget session close -s SID
 ```
 
 Run a multi-step workflow with one command:
@@ -197,6 +284,12 @@ For actions, prefer snapshot refs before CSS selectors:
 aget page snapshot -s SID
 aget page click -s SID --ref @e1
 aget page fill -s SID --ref @i1 --text TEXT
+aget page select -s SID --ref @i1 --value VALUE
+aget page check -s SID --ref @i1
+
+Verify element state:
+aget page is -s SID --ref @i1 visible
+aget page is -s SID --ref @i1 checked
 
 If visual state, layout, canvas, captcha, or a text-poor page matters, capture a screenshot:
 aget page screenshot -s SID --path ./page.png
@@ -204,6 +297,10 @@ aget page screenshot -s SID --path ./page.png
 When refs are unavailable, use CSS selectors:
 aget page click -s SID --selector CSS
 aget page type -s SID --selector CSS --text TEXT
+
+To preserve authentication across sessions, use profiles:
+aget profile create mysite --cookies cookies.txt
+aget open URL --profile mysite
 
 For multi-step workflows, use:
 aget page wait -s SID --text TEXT
@@ -223,15 +320,15 @@ Do not repeat sensitive text from forms, cookies, tokens, or private pages. Cont
 Minimal per-tool prompts:
 
 ```text
-Codex: Use `aget` for browser tasks. Start with `aget open URL -n NAME`, keep the returned sid, then use `aget page snapshot -s SID` and refs for `click/fill`; use `aget page read` or `aget page get` for text and `aget page screenshot` for visual state. Close the session with `aget session close -s SID`.
+Codex: Use `aget` for browser tasks. Start with `aget open URL -n NAME`, keep the returned sid, then use `aget page snapshot -s SID` and refs for `click/fill/select/check`; verify with `aget page is`; use `aget page read` or `aget page get` for text and `aget page screenshot` for visual state. For authenticated sessions, create a profile: `aget profile create NAME --cookies FILE` then `aget open URL --profile NAME`. Close the session with `aget session close -s SID`.
 ```
 
 ```text
-Claude Code: Before browser work, install/run `aget`. For each page, use the returned sid and JSON `next_commands`; start with `aget page snapshot`, act with refs, use `page wait/get/scroll/batch` for multi-step workflows, and take a screenshot when layout matters or text reading is insufficient.
+Claude Code: Before browser work, install/run `aget`. For each page, use the returned sid and JSON `next_commands`; start with `aget page snapshot`, act with refs (`fill/select/check/is`), use `page wait/get/scroll/batch` for multi-step workflows, and take a screenshot when layout matters or text reading is insufficient. For persistent cookies, use `aget profile create` and `open --profile`.
 ```
 
 ```text
-OpenCode: Use `aget open`, then `aget page snapshot/read/click/fill/wait/get/scroll/screenshot` with the returned sid. Do not mix sid values across browser sessions, run `aget doctor` for browser problems, and always close the session when finished.
+OpenCode: Use `aget open`, then `aget page snapshot/read/click/fill/select/check/is/wait/get/scroll/screenshot` with the returned sid. Do not mix sid values across browser sessions, run `aget doctor` for browser problems, and always close the session when finished.
 ```
 
 ## Environment
