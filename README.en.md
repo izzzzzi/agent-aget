@@ -9,6 +9,8 @@ Language: English | [Русский](README.md)
 
 `aget` is a browser workflow helper for LLM agents. The CLI starts managed [CloakBrowser](https://github.com/CloakHQ/CloakBrowser) stealth Chromium, stores local sessions, and returns machine-readable JSON.
 
+![aget architecture](docs/aget-architecture-en.png)
+
 ## Install
 
 ```bash

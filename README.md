@@ -9,6 +9,8 @@
 
 `aget` - помощник для браузерных сценариев LLM-агентов. CLI запускает управляемый [CloakBrowser](https://github.com/CloakHQ/CloakBrowser) stealth Chromium, хранит локальные сессии и возвращает машинно-читаемый JSON.
 
+![aget architecture](docs/aget-architecture-ru.png)
+
 ## Установка
 
 ```bash
