@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 
@@ -27,12 +28,69 @@ var waitForOpenPage = cdp.WaitForPageURL
 var openPageReadyTimeout = 30 * time.Second
 var cdpReadyTimeout = 10 * time.Second
 
+type devicePreset struct {
+	Width     int
+	Height    int
+	Scale     float64
+	UserAgent string
+	Touch     bool
+}
+
+var devicePresets = map[string]devicePreset{
+	"mobile": {
+		Width:     375,
+		Height:    812,
+		Scale:     3,
+		UserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+		Touch:     true,
+	},
+	"tablet": {
+		Width:     768,
+		Height:    1024,
+		Scale:     2,
+		UserAgent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+		Touch:     true,
+	},
+	"desktop": {
+		Width:     1280,
+		Height:    720,
+		Scale:     1,
+		UserAgent: "",
+		Touch:     false,
+	},
+}
+
+func deviceEmulationAction(preset devicePreset) chromedp.Action {
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		// Apply viewport with device scale factor
+		if err := chromedp.EmulateViewport(int64(preset.Width), int64(preset.Height), chromedp.EmulateScale(preset.Scale)).Do(ctx); err != nil {
+			return err
+		}
+		// Override user agent
+		if preset.UserAgent != "" {
+			if err := emulation.SetUserAgentOverride(preset.UserAgent).Do(ctx); err != nil {
+				return err
+			}
+		}
+		// Enable touch emulation
+		if preset.Touch {
+			touch := true
+			maxPoints := int64(5)
+			if err := emulation.SetTouchEmulationEnabled(touch).WithMaxTouchPoints(maxPoints).Do(ctx); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func newOpenCommand() *cobra.Command {
 	var name string
 	var headful bool
 	var browserPath string
 	var cookieInput string
 	var profileName string
+	var deviceName string
 	cmd := &cobra.Command{
 		Use:   "open URL",
 		Short: "Open a URL in a managed browser session",
@@ -47,6 +105,16 @@ func newOpenCommand() *cobra.Command {
 			resolved, err := browser.Resolve(browserPath)
 			if err != nil {
 				return writeError(cmd, "browser_not_found", err.Error(), nil)
+			}
+
+			// Validate device preset
+			var device *devicePreset
+			if deviceName != "" {
+				d, ok := devicePresets[deviceName]
+				if !ok {
+					return writeInvalidArgs(cmd, "unsupported device: "+deviceName+" (use mobile, tablet, or desktop)")
+				}
+				device = &d
 			}
 
 			sid, err := ids.NewSessionID()
@@ -97,13 +165,21 @@ func newOpenCommand() *cobra.Command {
 				cookies.ApplyDomain(parsedCookies, url)
 			}
 
+			var windowWidth, windowHeight int
+			if device != nil {
+				windowWidth = device.Width
+				windowHeight = device.Height
+			}
+
 			process, err := browser.Launch(browser.LaunchOptions{
-				BinaryPath:  resolved.Path,
-				BrowserName: resolved.Browser,
-				URL:         url,
-				UserDataDir: userDataDir,
-				Port:        port,
-				Headless:    !headful,
+				BinaryPath:   resolved.Path,
+				BrowserName:  resolved.Browser,
+				URL:          url,
+				UserDataDir:  userDataDir,
+				Port:         port,
+				Headless:     !headful,
+				WindowWidth:  windowWidth,
+				WindowHeight: windowHeight,
 			})
 			if err != nil {
 				return writeError(cmd, "browser_launch_failed", err.Error(), nil)
@@ -117,6 +193,14 @@ func newOpenCommand() *cobra.Command {
 				return writeError(cmd, "browser_launch_failed", err.Error(), map[string]any{"debug_url": process.DebugURL})
 			}
 			readyCancel()
+
+			// Apply device emulation (viewport scale, user-agent, touch) and reload
+			if device != nil {
+				if err := emulateDeviceAndReload(process.DebugURL, *device); err != nil {
+					_ = process.Stop()
+					return writeError(cmd, "device_emulation_failed", err.Error(), nil)
+				}
+			}
 
 			// If cookies provided, inject after page load and reload so the page
 			// picks up the cookies on subsequent requests.
@@ -148,6 +232,7 @@ func newOpenCommand() *cobra.Command {
 				"ok":      true,
 				"sid":     sid,
 				"session": name,
+				"device":  deviceName,
 				"browser": map[string]any{"name": resolved.Browser, "path": resolved.Path, "pid": process.PID, "debug_url": process.DebugURL, "headless": !headful},
 				"page":    map[string]any{"url": url},
 				"record":  record,
@@ -172,6 +257,7 @@ func newOpenCommand() *cobra.Command {
 	cmd.Flags().StringVar(&browserPath, "browser-path", "", "browser binary path")
 	cmd.Flags().StringVar(&cookieInput, "cookies", "", "cookies to inject (file path for Netscape format, or inline name=value; pairs)")
 	cmd.Flags().StringVar(&profileName, "profile", "", "persistent browser profile to use (created with aget profile create)")
+	cmd.Flags().StringVar(&deviceName, "device", "", "device preset: mobile, tablet, or desktop (default: desktop)")
 	configureAgentHelp(cmd)
 	return cmd
 }
@@ -200,6 +286,26 @@ func injectCookiesAndReload(debugURL, targetURL string, cookieParams []*network.
 		chromedp.Navigate(targetURL),
 	); err != nil {
 		return fmt.Errorf("cdp inject/reload: %w", err)
+	}
+
+	return nil
+}
+
+// emulateDeviceAndReload connects to the browser via CDP, applies device
+// emulation (viewport scale, user-agent, touch), and reloads the page.
+func emulateDeviceAndReload(debugURL string, preset devicePreset) error {
+	ctx, cancel := context.WithTimeout(context.Background(), cdpReadyTimeout)
+	defer cancel()
+	if err := waitForCDPPort(ctx, debugURL); err != nil {
+		return fmt.Errorf("browser CDP port not ready: %w", err)
+	}
+
+	allocCtx, allocCancel := chromedp.NewRemoteAllocator(context.Background(), debugURL)
+	defer allocCancel()
+	tabCtx, _ := chromedp.NewContext(allocCtx)
+
+	if err := chromedp.Run(tabCtx, deviceEmulationAction(preset)); err != nil {
+		return fmt.Errorf("cdp device emulation: %w", err)
 	}
 
 	return nil

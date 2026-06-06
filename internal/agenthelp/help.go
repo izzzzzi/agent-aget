@@ -42,6 +42,7 @@ func RootHelp() HelpPayload {
 			"browser_install":     "aget browser install",
 			"doctor":              "aget doctor",
 			"open":                "aget open URL -n NAME",
+			"open_device":         "aget open URL --device mobile",
 			"open_profile":        "aget open URL --profile NAME",
 			"profile_create":      "aget profile create NAME --cookies COOKIES",
 			"profile_list":        "aget profile list",
@@ -191,9 +192,16 @@ func GroupHelp(name string) (HelpPayload, bool) {
 			CommandGroup: "open", AgentPromptCommand: "aget prompt",
 			Workflow: []string{
 				"Open a URL and keep the returned sid",
+				"Use --device mobile|tablet|desktop for device emulation (coherent viewport + UA + touch)",
+				"Use --profile to reuse a persistent profile with cookies",
 				"Follow next_commands from the response",
 			},
-			Commands: map[string]string{"open": "aget open URL -n NAME"},
+			Commands: map[string]string{
+				"open":         "aget open URL -n NAME",
+				"open_device":  "aget open URL --device mobile",
+				"open_profile": "aget open URL --profile NAME",
+				"open_cookies": "aget open URL --cookies FILE",
+			},
 		},
 		"version": {
 			OK: true, Tool: "aget", Audience: "llm_agent", Kind: "agent_help",
@@ -220,6 +228,6 @@ func GroupHelp(name string) (HelpPayload, bool) {
 func Prompt() PromptPayload {
 	return PromptPayload{
 		OK: true, Tool: "aget", Audience: "llm_agent", Kind: "agent_prompt",
-		Prompt: "You are using aget, a browser workflow CLI for LLM agents backed by managed CloakBrowser stealth Chromium when available. All operational commands return JSON. Use `aget browser status` to inspect the managed browser when needed and `aget doctor` when install or browser startup fails. For persistent logged-in state, use profiles: `aget profile create NAME --cookies FILE` once, then `aget open URL --profile NAME` to reuse cookies across sessions. Use `aget profile list` to discover available profiles. Start with `aget open URL`, save the returned `sid`, then prefer `aget page snapshot -s SID` before actions because it returns refs like `@e1` and `@i1`. Use refs before CSS selectors when possible: `aget page click -s SID --ref REF`, `aget page fill -s SID --ref REF --text TEXT`, `aget page select -s SID --ref REF --value VALUE`. For checkboxes/radios use `aget page check -s SID --ref REF`. Verify state with `aget page is -s SID --ref REF visible|checked|enabled|focused`. Fall back with `aget page js -s SID --expr EXPR` for anything not covered. Use `aget page read -s SID --limit 80`, `aget page get -s SID text --ref REF`, `aget page wait -s SID --text TEXT`, `aget page scroll -s SID --direction down --px 800`, `aget page screenshot -s SID --path ./page.png`, and `aget batch -s SID --stdin` for multi-step workflows. Avoid echoing sensitive text from forms, cookies, tokens, or private pages. Continue with returned `next_commands` and always run `aget session close -s SID` when finished.",
+		Prompt: "You are using aget, a browser workflow CLI for LLM agents backed by managed CloakBrowser stealth Chromium when available. All operational commands return JSON. Use `aget browser status` to inspect the managed browser when needed and `aget doctor` when install or browser startup fails. For persistent logged-in state, use profiles: `aget profile create NAME --cookies FILE` once, then `aget open URL --profile NAME` to reuse cookies across sessions. Use `aget profile list` to discover available profiles. For mobile or tablet pages, use `aget open URL --device mobile` or `--device tablet` (applies coherent viewport, user-agent, and touch emulation for stealth). Start with `aget open URL`, save the returned `sid`, then prefer `aget page snapshot -s SID` before actions because it returns refs like `@e1` and `@i1`. Use refs before CSS selectors when possible: `aget page click -s SID --ref REF`, `aget page fill -s SID --ref REF --text TEXT`, `aget page select -s SID --ref REF --value VALUE`. For checkboxes/radios use `aget page check -s SID --ref REF`. Verify state with `aget page is -s SID --ref REF visible|checked|enabled|focused`. Fall back with `aget page js -s SID --expr EXPR` for anything not covered. Use `aget page read -s SID --limit 80`, `aget page get -s SID text --ref REF`, `aget page wait -s SID --text TEXT`, `aget page scroll -s SID --direction down --px 800`, `aget page screenshot -s SID --path ./page.png`, and `aget batch -s SID --stdin` for multi-step workflows. Avoid echoing sensitive text from forms, cookies, tokens, or private pages. Continue with returned `next_commands` and always run `aget session close -s SID` when finished.",
 	}
 }

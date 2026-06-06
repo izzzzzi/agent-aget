@@ -60,6 +60,13 @@ aget open https://example.com -n example
 aget open https://example.com -n example --headful
 ```
 
+Для мобильных и планшетных страниц используйте `--device` (согласованный viewport + user-agent + touch для сохранения stealth):
+
+```bash
+aget open https://m.site.ru --device mobile
+aget open https://m.site.ru --device tablet
+```
+
 Чтобы зайти с куками (Netscape-файл или inline):
 
 ```bash

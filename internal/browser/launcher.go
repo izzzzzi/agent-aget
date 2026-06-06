@@ -20,6 +20,8 @@ type LaunchOptions struct {
 	Headless     bool
 	Fingerprint  string
 	PlatformName string
+	WindowWidth  int
+	WindowHeight int
 }
 
 type Process struct {
@@ -87,6 +89,9 @@ func buildArgs(options LaunchOptions) []string {
 	}
 	if options.Headless {
 		args = append(args, "--headless=new")
+	}
+	if options.WindowWidth > 0 && options.WindowHeight > 0 {
+		args = append(args, fmt.Sprintf("--window-size=%d,%d", options.WindowWidth, options.WindowHeight))
 	}
 	if options.URL != "" {
 		args = append(args, options.URL)

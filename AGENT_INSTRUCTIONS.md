@@ -80,6 +80,10 @@ aget profile show ozon
 aget open https://ozon.ru --profile ozon
 aget open https://samokat.ru --profile samokat
 aget profile delete ozon
+
+# Device emulation (coherent viewport + user-agent + touch for stealth)
+aget open https://m.site.ru --device mobile
+aget open https://m.site.ru --device tablet
 ```
 
 Run `aget doctor` when install or browser startup fails.

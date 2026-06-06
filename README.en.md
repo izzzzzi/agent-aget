@@ -60,6 +60,13 @@ The browser runs headless by default. Use a visible window with:
 aget open https://example.com -n example --headful
 ```
 
+For mobile and tablet pages, use `--device` (coherent viewport + user-agent + touch to preserve stealth):
+
+```bash
+aget open https://m.site.ru --device mobile
+aget open https://m.site.ru --device tablet
+```
+
 To open with cookies (Netscape file or inline):
 
 ```bash
