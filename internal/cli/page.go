@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/izzzzzi/agent-aget/internal/cdp"
@@ -504,6 +505,24 @@ func newPageScreenshotCommand() *cobra.Command {
 
 			if path == "" {
 				path = filepath.Join(state.ArtifactsDir(), sid+".png")
+			} else {
+				resolved, err := filepath.Abs(path)
+				if err != nil {
+					return writeError(cmd, "page_screenshot_failed", "invalid path", map[string]any{"sid": sid})
+				}
+				safeRoots := []string{os.TempDir(), state.ArtifactsDir(), state.SnapshotsDir()}
+				allowed := false
+				for _, root := range safeRoots {
+					rel, err := filepath.Rel(root, resolved)
+					if err == nil && !strings.HasPrefix(rel, "..") {
+						allowed = true
+						path = resolved
+						break
+					}
+				}
+				if !allowed {
+					return writeError(cmd, "page_screenshot_failed", "--path must be under /tmp or aget state directory", map[string]any{"sid": sid})
+				}
 			}
 			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 				return writeError(cmd, "page_screenshot_failed", err.Error(), map[string]any{"sid": sid})
@@ -641,16 +660,37 @@ func newPageJSCommand() *cobra.Command {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
 			expression := expr
-			if file != "" {
-				data, err := os.ReadFile(file)
+			fromFile := file != ""
+			if fromFile {
+				resolved, err := filepath.Abs(file)
 				if err != nil {
-					return writeError(cmd, "page_action_failed", err.Error(), map[string]any{"sid": sid})
+					return writeError(cmd, "page_action_failed", "invalid file path", map[string]any{"sid": sid})
+				}
+				safeRoots := []string{os.TempDir(), state.ArtifactsDir()}
+				allowed := false
+				for _, root := range safeRoots {
+					rel, err := filepath.Rel(root, resolved)
+					if err == nil && !strings.HasPrefix(rel, "..") {
+						allowed = true
+						break
+					}
+				}
+				if !allowed {
+					return writeError(cmd, "page_action_failed", "--file path must be under /tmp or aget artifacts directory", map[string]any{"sid": sid})
+				}
+				data, err := os.ReadFile(resolved)
+				if err != nil {
+					return writeError(cmd, "page_action_failed", "cannot read file", map[string]any{"sid": sid})
 				}
 				expression = string(data)
 			}
 			result, err := svc.Eval(ctx, expression)
 			if err != nil {
-				return writeError(cmd, "page_action_failed", err.Error(), map[string]any{"sid": sid})
+				msg := err.Error()
+				if fromFile {
+					msg = "JavaScript evaluation failed"
+				}
+				return writeError(cmd, "page_action_failed", msg, map[string]any{"sid": sid})
 			}
 			return writeJSON(cmd, map[string]any{"ok": true, "sid": sid, "result": result})
 		},

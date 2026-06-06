@@ -57,6 +57,9 @@ func newProfileCreateCommand() *cobra.Command {
 				if errors.Is(err, profilestore.ErrExists) {
 					return writeError(cmd, "profile_exists", "profile already exists: "+name, map[string]any{"name": name})
 				}
+				if errors.Is(err, profilestore.ErrInvalidName) {
+					return writeError(cmd, "invalid_args", err.Error(), map[string]any{"name": name})
+				}
 				return writeError(cmd, "profile_create_failed", err.Error(), map[string]any{"name": name})
 			}
 

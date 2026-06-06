@@ -6,14 +6,29 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
 
 var (
-	ErrNotFound = errors.New("profile not found")
-	ErrExists   = errors.New("profile already exists")
+	ErrNotFound    = errors.New("profile not found")
+	ErrExists      = errors.New("profile already exists")
+	ErrInvalidName = errors.New("invalid profile name")
 )
+
+func validateProfileName(name string) error {
+	if name == "" || len(name) > 64 {
+		return ErrInvalidName
+	}
+	if name != filepath.Base(name) {
+		return ErrInvalidName
+	}
+	if strings.ContainsAny(name, "/\\") {
+		return ErrInvalidName
+	}
+	return nil
+}
 
 type Record struct {
 	Name            string    `json:"name"`
@@ -83,6 +98,10 @@ func (s *Store) save(records []Record) error {
 func (s *Store) Create(name string, cookiesImported bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if err := validateProfileName(name); err != nil {
+		return err
+	}
 
 	records, err := s.load()
 	if err != nil {
