@@ -510,19 +510,10 @@ func newPageScreenshotCommand() *cobra.Command {
 				if err != nil {
 					return writeError(cmd, "page_screenshot_failed", "invalid path", map[string]any{"sid": sid})
 				}
-				safeRoots := []string{os.TempDir(), state.ArtifactsDir(), state.SnapshotsDir()}
-				allowed := false
-				for _, root := range safeRoots {
-					rel, err := filepath.Rel(root, resolved)
-					if err == nil && !strings.HasPrefix(rel, "..") {
-						allowed = true
-						path = resolved
-						break
-					}
-				}
-				if !allowed {
+				if !isPathUnderSafeRoots(resolved, []string{os.TempDir(), "/tmp", state.ArtifactsDir(), state.SnapshotsDir()}) {
 					return writeError(cmd, "page_screenshot_failed", "--path must be under /tmp or aget state directory", map[string]any{"sid": sid})
 				}
+				path = resolved
 			}
 			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 				return writeError(cmd, "page_screenshot_failed", err.Error(), map[string]any{"sid": sid})
@@ -1040,6 +1031,28 @@ func countNonEmpty(values ...string) int {
 		}
 	}
 	return count
+}
+
+func isPathUnderSafeRoots(path string, roots []string) bool {
+	for _, root := range roots {
+		resolvedRoot, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			resolvedRoot = root
+		}
+		// Try resolving symlinks on the path's parent directory
+		dir := filepath.Dir(path)
+		resolvedDir, err := filepath.EvalSymlinks(dir)
+		if err == nil {
+			path = filepath.Join(resolvedDir, filepath.Base(path))
+		}
+		// Clean both for comparison
+		resolvedRoot = filepath.Clean(resolvedRoot) + string(filepath.Separator)
+		cleanPath := filepath.Clean(path) + string(filepath.Separator)
+		if strings.HasPrefix(cleanPath, resolvedRoot) {
+			return true
+		}
+	}
+	return false
 }
 
 func validGetKind(kind string) bool {
