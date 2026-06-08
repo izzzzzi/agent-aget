@@ -2,7 +2,11 @@ package cli
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
+	"syscall"
 
+	"github.com/izzzzzi/agent-aget/internal/browser"
 	sessionstore "github.com/izzzzzi/agent-aget/internal/session"
 	"github.com/izzzzzi/agent-aget/internal/state"
 	"github.com/spf13/cobra"
@@ -52,13 +56,14 @@ func newSessionCloseCommand() *cobra.Command {
 			if sid == "" {
 				return writeInvalidArgs(cmd, "session id required")
 			}
-			if err := sessionstore.NewRegistry(state.SessionsDir()).Delete(sid); err != nil {
+			closed, err := closeSession(sid)
+			if err != nil {
 				if errors.Is(err, sessionstore.ErrNotFound) {
 					return writeError(cmd, "session_not_found", "session not found", map[string]any{"sid": sid})
 				}
 				return writeError(cmd, "session_close_failed", err.Error(), map[string]any{"sid": sid})
 			}
-			return writeJSON(cmd, map[string]any{"ok": true, "sid": sid})
+			return writeJSON(cmd, map[string]any{"ok": true, "sid": sid, "closed": closed})
 		},
 	}
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
@@ -72,9 +77,80 @@ func newSessionGCCommand() *cobra.Command {
 		Short: "Garbage collect stale sessions",
 		Args:  noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return writeJSON(cmd, map[string]any{"ok": true, "removed": []string{}})
+			removed, err := gcSessions()
+			if err != nil {
+				return writeError(cmd, "session_gc_failed", err.Error(), nil)
+			}
+			return writeJSON(cmd, map[string]any{"ok": true, "removed": removed})
 		},
 	}
 	configureAgentHelp(cmd)
 	return cmd
+}
+
+func closeSession(sid string) (map[string]any, error) {
+	registry := sessionstore.NewRegistry(state.SessionsDir())
+	record, err := registry.Get(sid)
+	if err != nil {
+		return nil, err
+	}
+
+	processErr := browser.StopPID(record.BrowserPID)
+	if processErr != nil && !errors.Is(processErr, os.ErrProcessDone) {
+		return nil, processErr
+	}
+
+	if err := registry.Delete(sid); err != nil {
+		return nil, err
+	}
+
+	removedUserDataDir := false
+	if record.Profile == "" {
+		if err := os.RemoveAll(filepath.Join(state.ProfilesDir(), sid)); err != nil {
+			return nil, err
+		}
+		removedUserDataDir = true
+	}
+
+	return map[string]any{
+		"browser_pid":           record.BrowserPID,
+		"process_already_gone":  errors.Is(processErr, os.ErrProcessDone),
+		"removed_user_data_dir": removedUserDataDir,
+	}, nil
+}
+
+func gcSessions() ([]string, error) {
+	registry := sessionstore.NewRegistry(state.SessionsDir())
+	records, err := registry.List()
+	if err != nil {
+		return nil, err
+	}
+
+	removed := make([]string, 0)
+	for _, record := range records {
+		if record.BrowserPID > 0 && processExists(record.BrowserPID) {
+			continue
+		}
+		if err := registry.Delete(record.SID); err != nil && !errors.Is(err, sessionstore.ErrNotFound) {
+			return nil, err
+		}
+		if record.Profile == "" {
+			if err := os.RemoveAll(filepath.Join(state.ProfilesDir(), record.SID)); err != nil {
+				return nil, err
+			}
+		}
+		removed = append(removed, record.SID)
+	}
+	return removed, nil
+}
+
+func processExists(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	return process.Signal(syscall.Signal(0)) == nil
 }

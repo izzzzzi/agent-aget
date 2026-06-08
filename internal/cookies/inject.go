@@ -2,8 +2,8 @@ package cookies
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log"
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
@@ -13,8 +13,8 @@ const batchSize = 50
 
 // InjectCookiesAction returns a chromedp.Action that injects the given cookies
 // via CDP Network.setCookies. Cookies are injected in batches of 50 to avoid
-// CDP implementation limits. If a batch fails, a warning is logged and injection
-// continues — partial injection is better than none.
+// CDP implementation limits. If any batch fails, the action returns an error so
+// callers do not report authenticated sessions when cookies were rejected.
 //
 // This action must run BEFORE any navigation action.
 func InjectCookiesAction(cookies []*network.CookieParam) chromedp.Action {
@@ -23,6 +23,7 @@ func InjectCookiesAction(cookies []*network.CookieParam) chromedp.Action {
 			return nil
 		}
 
+		var failures []error
 		for i := 0; i < len(cookies); i += batchSize {
 			end := i + batchSize
 			if end > len(cookies) {
@@ -31,12 +32,11 @@ func InjectCookiesAction(cookies []*network.CookieParam) chromedp.Action {
 
 			batch := cookies[i:end]
 			if err := network.SetCookies(batch).Do(ctx); err != nil {
-				log.Printf("WARNING: failed to inject cookie batch %d-%d: %v", i, end, err)
-				// Continue with remaining batches
+				failures = append(failures, fmt.Errorf("failed to inject cookie batch %d-%d: %w", i, end, err))
 			}
 		}
 
-		return nil
+		return errors.Join(failures...)
 	})
 }
 

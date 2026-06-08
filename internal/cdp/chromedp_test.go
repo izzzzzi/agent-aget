@@ -72,6 +72,33 @@ func TestFillReturnsCanceledContextWithoutRunningAction(t *testing.T) {
 	}
 }
 
+func TestSelectMatchesVisibleTextAndRejectsMissingOption(t *testing.T) {
+	if os.Getenv("AGET_RUN_CHROME_TESTS") != "1" {
+		t.Skip("set AGET_RUN_CHROME_TESTS=1 to run live Chrome select tests")
+	}
+
+	ctx, cancel := chromedp.NewContext(context.Background())
+	defer cancel()
+	if err := chromedp.Run(ctx, chromedp.Navigate("data:text/html,"+strings.ReplaceAll(`<select id="team"><option value="fe">Frontend</option><option value="be">Backend</option></select>`, "#", "%23"))); err != nil {
+		t.Fatal(err)
+	}
+	driver := &ChromeDPDriver{ctx: ctx, run: chromedp.Run}
+
+	if err := driver.Select(context.Background(), "#team", "Backend"); err != nil {
+		t.Fatalf("Select visible text failed: %v", err)
+	}
+	var value string
+	if err := chromedp.Run(ctx, chromedp.Value("#team", &value)); err != nil {
+		t.Fatal(err)
+	}
+	if value != "be" {
+		t.Fatalf("selected value = %q, want be", value)
+	}
+	if err := driver.Select(context.Background(), "#team", "Missing"); err == nil {
+		t.Fatal("expected missing option error")
+	}
+}
+
 func TestPressReturnsCanceledContextWithoutRunningAction(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

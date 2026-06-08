@@ -183,7 +183,7 @@ Capture a screenshot:
 
 ```bash
 aget page screenshot -s SID
-aget page screenshot -s SID --path ./page.png
+aget page screenshot -s SID --path /tmp/page.png
 ```
 
 Run multiple steps with one JSON batch command:
@@ -301,7 +301,7 @@ aget page is -s SID --ref @i1 visible
 aget page is -s SID --ref @i1 checked
 
 If visual state, layout, canvas, captcha, or a text-poor page matters, capture a screenshot:
-aget page screenshot -s SID --path ./page.png
+aget page screenshot -s SID --path /tmp/page.png
 
 When refs are unavailable, use CSS selectors:
 aget page click -s SID --selector CSS
@@ -345,7 +345,10 @@ OpenCode: Use `aget open`, then `aget page snapshot/read/click/fill/select/check
 - `AGET_BROWSER_PATH` - path to a Chromium-compatible browser.
 - `AGET_BROWSER_CACHE_DIR` - cache directory for managed CloakBrowser.
 - `AGET_STATE_DIR` - local state directory for sessions, profiles, and artifacts.
-- `AGENT_AGET_SKIP_DOWNLOAD=1` - skip the native binary download during npm `postinstall` and write a fake executable for smoke tests.
+- `AGET_SKIP_BROWSER_DOWNLOAD=1` - skip managed CloakBrowser installation during npm `postinstall`.
+- `AGENT_AGET_SKIP_DOWNLOAD=1` - dev/test-only: skip the native binary download during npm `postinstall` and write a fake executable for smoke tests.
+
+`aget page screenshot --path` accepts only safe paths under `/tmp` or the aget state/artifacts directories; omit `--path` to write into the artifacts directory automatically.
 
 ## License
 

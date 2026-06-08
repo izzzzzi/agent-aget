@@ -1,6 +1,6 @@
 {
   "name": "agent-aget",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "CloakBrowser-backed browser workflow CLI for LLM agents",
   "license": "MIT",
   "repository": {
@@ -33,7 +33,9 @@
   },
   "files": [
     "bin/aget.js",
-    "scripts",
+    "scripts/install.js",
+    "scripts/platform.js",
+    "scripts/browser-install.js",
     "browser-manifest.json",
     "README.md",
     "README.en.md",

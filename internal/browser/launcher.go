@@ -72,6 +72,13 @@ func (p *Process) Stop() error {
 	return killErr
 }
 
+func StopPID(pid int) error {
+	if pid <= 0 {
+		return nil
+	}
+	return stopPID(pid)
+}
+
 func buildArgs(options LaunchOptions) []string {
 	args := []string{
 		"--remote-debugging-address=127.0.0.1",

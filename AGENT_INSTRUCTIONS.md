@@ -67,7 +67,7 @@ aget page dialog-dismiss -s SID
 aget page js -s SID --expr "document.querySelector('input[name=x]').click()"
 
 # Visual
-aget page screenshot -s SID --path ./page.png
+aget page screenshot -s SID --path /tmp/page.png
 
 # Batch
 aget batch -s SID --stdin

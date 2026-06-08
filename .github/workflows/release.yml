@@ -47,6 +47,7 @@ jobs:
       - name: Release binaries
         uses: goreleaser/goreleaser-action@v7
         with:
+          version: v2.16.0
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

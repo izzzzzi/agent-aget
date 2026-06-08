@@ -242,12 +242,10 @@ func seedProfileCookies(name, cookieInput, browserPath string) error {
 		return fmt.Errorf("0 valid cookies parsed from input")
 	}
 
-	// Set domain to empty so cookies work for any URL during seed
-	for _, c := range parsedCookies {
-		if c.Domain == "" {
-			c.Domain = ""                     // leave empty; Chromium accepts cookies without domain for any origin in headless
-			c.URL = "https://" + name + ".ru" // hint URL for the cookie
-		}
+	targetURL := "https://" + name + ".ru"
+	normalizedCookies := profileCookieParams(parsedCookies, targetURL)
+	if len(normalizedCookies) == 0 {
+		return fmt.Errorf("0 cookies remained after normalization")
 	}
 
 	port, err := browser.FindFreePort()
@@ -280,23 +278,43 @@ func seedProfileCookies(name, cookieInput, browserPath string) error {
 	defer allocCancel()
 	tabCtx, _ := chromedp.NewContext(allocCtx)
 
-	var networkCookies []*network.CookieParam
-	for _, c := range parsedCookies {
-		cp := &network.CookieParam{
-			Name:   c.Name,
-			Value:  c.Value,
-			Domain: c.Domain,
-			Path:   "/",
-		}
-		if cp.Domain == "" {
-			continue
-		}
-		networkCookies = append(networkCookies, cp)
-	}
-
-	if err := chromedp.Run(tabCtx, cookies.InjectCookiesAction(networkCookies)); err != nil {
+	if err := chromedp.Run(tabCtx, cookies.InjectCookiesAction(normalizedCookies)); err != nil {
 		return fmt.Errorf("inject cookies: %w", err)
 	}
 
 	return nil
+}
+
+func profileCookieParams(parsedCookies []*network.CookieParam, targetURL string) []*network.CookieParam {
+	var normalized []*network.CookieParam
+	for _, c := range parsedCookies {
+		if c == nil || c.Name == "" {
+			continue
+		}
+
+		cp := &network.CookieParam{
+			Name:      c.Name,
+			Value:     c.Value,
+			URL:       c.URL,
+			Domain:    c.Domain,
+			Path:      c.Path,
+			Secure:    c.Secure,
+			HTTPOnly:  c.HTTPOnly,
+			SameSite:  c.SameSite,
+			Expires:   c.Expires,
+			Priority:  c.Priority,
+			SameParty: c.SameParty,
+		}
+		if cp.Path == "" {
+			cp.Path = "/"
+		}
+		if cp.Domain == "" && cp.URL == "" {
+			cp.URL = targetURL
+		}
+		if cp.Domain == "" && cp.URL == "" {
+			continue
+		}
+		normalized = append(normalized, cp)
+	}
+	return normalized
 }

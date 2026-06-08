@@ -20,6 +20,7 @@ async function main() {
     await testInstallRejectsUnsafeArchiveName();
     await testInstallPreservesExistingInstallWhenStagedValidationFails();
     await testInstallExtractsTarGz();
+    require('./release-contract-test.test')();
   } finally {
     if (originalCacheDir === undefined) {
       delete process.env.AGET_BROWSER_CACHE_DIR;

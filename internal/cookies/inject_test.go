@@ -1,7 +1,11 @@
 package cookies
 
 import (
+	"context"
+	"strings"
 	"testing"
+
+	"github.com/chromedp/cdproto/network"
 )
 
 func TestDomainForURL(t *testing.T) {
@@ -55,5 +59,16 @@ func TestApplyDomain_ExistingDomainPreserved(t *testing.T) {
 
 	if cookies[0].Domain != "other.com" {
 		t.Errorf("expected existing domain to be preserved, got %s", cookies[0].Domain)
+	}
+}
+
+func TestInjectCookiesActionReturnsBatchError(t *testing.T) {
+	params := []*network.CookieParam{{Name: "sid", Value: "abc", Domain: "example.com", Path: "/"}}
+	err := InjectCookiesAction(params).Do(context.Background())
+	if err == nil {
+		t.Fatal("expected injection error")
+	}
+	if !strings.Contains(err.Error(), "failed to inject cookie batch") {
+		t.Fatalf("error = %q, want batch failure", err.Error())
 	}
 }

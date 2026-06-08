@@ -183,7 +183,7 @@ aget page scroll -s SID --direction down --px 800
 
 ```bash
 aget page screenshot -s SID
-aget page screenshot -s SID --path ./page.png
+aget page screenshot -s SID --path /tmp/page.png
 ```
 
 Выполнить несколько шагов одной JSON batch-командой:
@@ -222,7 +222,7 @@ aget session close -s SID
 ```bash
 aget page snapshot -s SID
 aget page fill -s SID --ref @i1 --text "agent@example.com"
-age page select -s SID --ref @i2 --value "Backend"
+aget page select -s SID --ref @i2 --value "Backend"
 aget page check -s SID --ref @i3
 aget page is -s SID --ref @i3 checked
 aget page press -s SID --key Enter
@@ -301,7 +301,7 @@ aget page is -s SID --ref @i1 visible
 aget page is -s SID --ref @i1 checked
 
 Если важен визуальный вид, состояние layout, canvas, captcha или страница плохо читается текстом, сделай screenshot:
-aget page screenshot -s SID --path ./page.png
+aget page screenshot -s SID --path /tmp/page.png
 
 Если refs недоступны, используй CSS-селекторы:
 aget page click -s SID --selector CSS
@@ -345,7 +345,10 @@ OpenCode: Используй `aget open`, затем `aget page snapshot/read/cl
 - `AGET_BROWSER_PATH` - путь к Chromium-совместимому браузеру.
 - `AGET_BROWSER_CACHE_DIR` - каталог cache для managed CloakBrowser.
 - `AGET_STATE_DIR` - каталог локального состояния, сессий, профилей и артефактов.
-- `AGENT_AGET_SKIP_DOWNLOAD=1` - пропустить скачивание native-бинаря в npm `postinstall` и записать тестовый исполняемый файл.
+- `AGET_SKIP_BROWSER_DOWNLOAD=1` - пропустить установку managed CloakBrowser во время npm `postinstall`.
+- `AGENT_AGET_SKIP_DOWNLOAD=1` - dev/test-only: пропустить скачивание native-бинаря в npm `postinstall` и записать тестовый исполняемый файл.
+
+`aget page screenshot --path` принимает только безопасные пути под `/tmp` или каталогами состояния/artifacts `aget`; без `--path` файл пишется в artifacts-каталог автоматически.
 
 ## Лицензия
 

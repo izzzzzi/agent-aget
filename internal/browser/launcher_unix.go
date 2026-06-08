@@ -3,6 +3,8 @@
 package browser
 
 import (
+	"errors"
+	"os"
 	"os/exec"
 	"syscall"
 )
@@ -12,5 +14,15 @@ func configureCommand(cmd *exec.Cmd) {
 }
 
 func stopCommand(cmd *exec.Cmd) error {
-	return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	return stopPID(cmd.Process.Pid)
+}
+
+func stopPID(pid int) error {
+	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
+		if errors.Is(err, syscall.ESRCH) {
+			return os.ErrProcessDone
+		}
+		return err
+	}
+	return nil
 }

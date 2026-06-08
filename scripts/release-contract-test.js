@@ -7,7 +7,7 @@ const pkg = require('../package.json');
 const { target } = require('./platform');
 
 const root = path.join(__dirname, '..');
-const releaseRemote = 'https://github.com/izzzzzi/agent-aget.git';
+const goreleaserVersion = 'v2.16.0';
 
 function expectedArchives(version) {
   return [
@@ -78,7 +78,11 @@ function git(args, options = {}) {
   return run('git', args, options);
 }
 
-function hasGitRef(ref) {
+function releaseTagForVersion(version = pkg.version) {
+  return `v${version}`;
+}
+
+function gitRefExists(ref) {
   const result = spawnSync('git', ['rev-parse', '--quiet', '--verify', ref], {
     cwd: root,
     stdio: 'ignore',
@@ -86,42 +90,51 @@ function hasGitRef(ref) {
   return result.status === 0;
 }
 
-function ensureReleaseGitState(version = pkg.version) {
-  const tag = `v${version}`;
-  let addedRemote = false;
-  let addedTag = false;
-  const cleanup = () => {
-    if (addedTag) {
-      git(['tag', '-d', tag]);
-    }
-    if (addedRemote) {
-      git(['remote', 'remove', 'origin']);
-    }
+function gitOutput(args) {
+  const result = spawnSync('git', args, { cwd: root, stdio: 'pipe', encoding: 'utf8' });
+  return { status: result.status, stdout: (result.stdout || '').trim(), stderr: (result.stderr || '').trim() };
+}
+
+function currentGitState(version = pkg.version) {
+  const tag = releaseTagForVersion(version);
+  const head = git(['rev-parse', 'HEAD']);
+  const tagExists = gitRefExists(`refs/tags/${tag}`);
+  const tagCommit = tagExists ? git(['rev-list', '-n', '1', tag]) : '';
+  const exact = gitOutput(['describe', '--tags', '--exact-match', 'HEAD']);
+  return {
+    version,
+    tag,
+    headCommit: head,
+    tagExists,
+    tagCommit,
+    exactMatch: exact.status === 0 && exact.stdout === tag,
   };
+}
 
-  try {
-    const remote = spawnSync('git', ['remote', 'get-url', 'origin'], {
-      cwd: root,
-      stdio: 'ignore',
-    });
-    if (remote.status !== 0) {
-      git(['remote', 'add', 'origin', releaseRemote]);
-      addedRemote = true;
-    }
+function assertReleaseTagState(state = currentGitState()) {
+  const tag = state.tag || releaseTagForVersion(state.version);
+  if (!state.tagExists) {
+    throw new Error(`missing release tag ${tag}; create it at HEAD before running release contract`);
+  }
+  if (state.tagCommit !== state.headCommit) {
+    throw new Error(`release tag ${tag} does not point at HEAD (${state.tagCommit} != ${state.headCommit})`);
+  }
+  if (!state.exactMatch) {
+    throw new Error(`HEAD is not exactly tagged ${tag}`);
+  }
+}
 
-    if (!hasGitRef(`refs/tags/${tag}`)) {
-      git(['tag', tag, 'HEAD']);
-      addedTag = true;
-    }
+function ensureReleaseGitState(version = pkg.version) {
+  const remote = spawnSync('git', ['remote', 'get-url', 'origin'], {
+    cwd: root,
+    stdio: 'ignore',
+  });
+  if (remote.status !== 0) {
+    throw new Error('git remote origin is required for release artifact contract');
+  }
 
-    return cleanup;
-  } catch (error) {
-    try {
-      cleanup();
-    } catch (cleanupError) {
-      error.message = `${error.message}\ncleanup failed: ${cleanupError.message}`;
-    }
-    throw error;
+  if (process.env.GITHUB_REF_TYPE === 'tag' || process.env.AGET_RELEASE_CONTRACT_STRICT_TAG === '1') {
+    assertReleaseTagState(currentGitState(version));
   }
 }
 
@@ -132,7 +145,7 @@ function goreleaserArgs() {
 
   return ['go', [
     'run',
-    'github.com/goreleaser/goreleaser/v2@latest',
+    `github.com/goreleaser/goreleaser/v2@${goreleaserVersion}`,
     'release',
     '--snapshot',
     '--clean',
@@ -158,17 +171,19 @@ function artifactFiles(directory = path.join(root, 'dist')) {
 }
 
 function main() {
-  const cleanup = ensureReleaseGitState();
+  ensureReleaseGitState();
+  verifyPackageFiles();
 
-  try {
-    verifyPackageFiles();
-    const [command, args] = goreleaserArgs();
-    run(command, args, { stdio: 'inherit' });
-    verifyArtifactFiles(artifactFiles());
-    console.log('release artifact contract ok');
-  } finally {
-    cleanup();
+  if (process.env.GITHUB_REF_TYPE !== 'tag' && process.env.AGET_RELEASE_CONTRACT_STRICT_TAG !== '1') {
+    verifyArtifactFiles(expectedArchives(pkg.version).concat('checksums.txt'), pkg.version);
+    console.log('release artifact contract ok (branch mode; tagged release build skipped)');
+    return;
   }
+
+  const [command, args] = goreleaserArgs();
+  run(command, args, { stdio: 'inherit' });
+  verifyArtifactFiles(artifactFiles());
+  console.log('release artifact contract ok');
 }
 
 if (require.main === module) {
@@ -184,4 +199,7 @@ module.exports = {
   expectedArchives,
   verifyArtifactFiles,
   verifyPackageFiles,
+  releaseTagForVersion,
+  assertReleaseTagState,
+  currentGitState,
 };

@@ -298,9 +298,7 @@ func (d *ChromeDPDriver) Fill(ctx context.Context, selector, text string) error 
 }
 
 func (d *ChromeDPDriver) Select(ctx context.Context, selector, value string) error {
-	escaped := strings.ReplaceAll(value, `\`, `\\`)
-	escaped = strings.ReplaceAll(escaped, "`", "\\`")
-	script := fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e||e.tagName!=='SELECT')throw new Error('not a select element');e.value=%q;e.dispatchEvent(new Event('change',{bubbles:true}));e.dispatchEvent(new Event('input',{bubbles:true}));})()`, selector, escaped)
+	script := fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e||e.tagName!=='SELECT')throw new Error('not a select element');const wanted=%q;const options=Array.from(e.options);const option=options.find(o=>o.value===wanted)||options.find(o=>o.textContent.trim()===wanted);if(!option)throw new Error('select option not found: '+wanted);e.value=option.value;e.dispatchEvent(new Event('change',{bubbles:true}));e.dispatchEvent(new Event('input',{bubbles:true}));})()`, selector, value)
 	return d.runActions(ctx, chromedp.Evaluate(script, nil))
 }
 
