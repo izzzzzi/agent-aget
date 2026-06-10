@@ -40,19 +40,21 @@ aget page is -s SID --ref REF focused
 
 # Interaction
 aget page click -s SID --ref REF
+aget page click -s SID --ref REF --force       # Force click via CDP mouse events
 aget page fill -s SID --ref REF --text TEXT
 aget page select -s SID --ref REF --value VALUE
 aget page type -s SID --ref REF --text TEXT
 aget page check -s SID --ref REF
 aget page uncheck -s SID --ref REF
 aget page press -s SID --key Enter
-aget page hover -s SID --ref REF
+aget page hover -s SID --ref REF               # Also dispatches focus first
 aget page focus -s SID --ref REF
 
 # Navigation
 aget page wait -s SID --text TEXT
 aget page wait -s SID --ref REF
 aget page wait -s SID --load ready
+aget page wait -s SID --appear SELECTOR        # Wait for element to appear in DOM
 aget page scroll -s SID --direction down --px 800
 
 # File upload

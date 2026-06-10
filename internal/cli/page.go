@@ -96,6 +96,7 @@ func newPageClickCommand() *cobra.Command {
 	var sid string
 	var selector string
 	var ref string
+	var force bool
 	cmd := &cobra.Command{
 		Use:   "click",
 		Short: "Click an element on the current page",
@@ -116,8 +117,14 @@ func newPageClickCommand() *cobra.Command {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
 			target := page.ActionTarget{SID: sid, Selector: selector, Ref: ref}
-			if err := svc.ClickTarget(ctx, target); err != nil {
-				return writePageActionError(cmd, sid, selector, ref, err)
+			var clickErr error
+			if force {
+				clickErr = svc.ClickForceTarget(ctx, target)
+			} else {
+				clickErr = svc.ClickTarget(ctx, target)
+			}
+			if clickErr != nil {
+				return writePageActionError(cmd, sid, selector, ref, clickErr)
 			}
 
 			payload := map[string]any{"ok": true, "sid": sid}
@@ -127,12 +134,16 @@ func newPageClickCommand() *cobra.Command {
 			if ref != "" {
 				payload["ref"] = ref
 			}
+			if force {
+				payload["force"] = true
+			}
 			return writeJSON(cmd, payload)
 		},
 	}
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
 	cmd.Flags().StringVar(&selector, "selector", "", "css selector")
 	cmd.Flags().StringVar(&ref, "ref", "", "snapshot ref")
+	cmd.Flags().BoolVar(&force, "force", false, "force click via CDP mouse events at element coordinates")
 	configureAgentHelp(cmd)
 	return cmd
 }
@@ -356,12 +367,13 @@ func newPageWaitCommand() *cobra.Command {
 	var text string
 	var url string
 	var load string
+	var appear string
 	cmd := &cobra.Command{
 		Use:   "wait",
 		Short: "Wait for a page condition",
 		Args:  noPositionalArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if countNonEmpty(selector, ref, text, url, load) != 1 {
+			if countNonEmpty(selector, ref, text, url, load, appear) != 1 {
 				return writeInvalidArgs(cmd, "exactly one wait condition required")
 			}
 			if selector != "" && ref != "" {
@@ -374,12 +386,16 @@ func newPageWaitCommand() *cobra.Command {
 			ctx, cancel := pageOperationContext()
 			defer cancel()
 
-			svc, err := pageServiceForRecord(ctx, record, ref != "")
+			svc, err := pageServiceForRecord(ctx, record, ref != "" || appear != "")
 			if err != nil {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
 
-			err = svc.Wait(ctx, page.WaitOptions{Target: page.ActionTarget{SID: sid, Selector: selector, Ref: ref}, Text: text, URL: url, Load: load})
+			if appear != "" {
+				err = svc.WaitAppearTarget(ctx, page.ActionTarget{SID: sid, Selector: appear})
+			} else {
+				err = svc.Wait(ctx, page.WaitOptions{Target: page.ActionTarget{SID: sid, Selector: selector, Ref: ref}, Text: text, URL: url, Load: load})
+			}
 			if err != nil {
 				return writeError(cmd, "page_wait_timeout", err.Error(), map[string]any{"sid": sid})
 			}
@@ -392,6 +408,7 @@ func newPageWaitCommand() *cobra.Command {
 	cmd.Flags().StringVar(&text, "text", "", "text to wait for")
 	cmd.Flags().StringVar(&url, "url", "", "url substring or pattern")
 	cmd.Flags().StringVar(&load, "load", "", "load state")
+	cmd.Flags().StringVar(&appear, "appear", "", "css selector to wait for element to appear in DOM")
 	configureAgentHelp(cmd)
 	return cmd
 }

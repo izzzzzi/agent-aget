@@ -50,7 +50,9 @@ type Driver interface {
 	Select(ctx context.Context, selector, value string) error
 	Press(ctx context.Context, key string) error
 	Scroll(ctx context.Context, direction string, pixels int) error
+	ClickForce(ctx context.Context, selector string) error
 	Wait(ctx context.Context, options WaitOptions) error
+	WaitAppear(ctx context.Context, selector string) error
 	Get(ctx context.Context, options GetOptions) (string, error)
 	Is(ctx context.Context, selector, prop string) (bool, error)
 	Eval(ctx context.Context, expression string) (string, error)

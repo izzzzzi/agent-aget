@@ -25,6 +25,8 @@ type batchStep struct {
 	Kind      string  `json:"kind,omitempty"`
 	URL       string  `json:"url,omitempty"`
 	Load      string  `json:"load,omitempty"`
+	Appear    string  `json:"appear,omitempty"`
+	Force     bool    `json:"force,omitempty"`
 }
 
 type batchError struct {
@@ -137,10 +139,20 @@ func runBatchStep(ctx context.Context, svc *page.Service, sid string, step batch
 		if err := validateBatchTarget(step); err != nil {
 			return nil, err
 		}
-		if err := svc.ClickTarget(ctx, batchTarget(sid, step)); err != nil {
-			return nil, err
+		if step.Force {
+			if err := svc.ClickForceTarget(ctx, batchTarget(sid, step)); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := svc.ClickTarget(ctx, batchTarget(sid, step)); err != nil {
+				return nil, err
+			}
 		}
-		return batchTargetResult("click", step), nil
+		result := batchTargetResult("click", step)
+		if step.Force {
+			result["force"] = true
+		}
+		return result, nil
 	case "fill":
 		if err := validateBatchTarget(step); err != nil {
 			return nil, err
@@ -168,6 +180,12 @@ func runBatchStep(ctx context.Context, svc *page.Service, sid string, step batch
 		}
 		if step.Ref != "" {
 			return nil, errors.New("ref is not supported for wait")
+		}
+		if step.Appear != "" {
+			if err := svc.WaitAppearTarget(ctx, page.ActionTarget{Selector: step.Appear}); err != nil {
+				return nil, err
+			}
+			return map[string]any{"cmd": "wait", "ok": true, "appear": step.Appear}, nil
 		}
 		text := ""
 		if step.Text != nil {
@@ -266,7 +284,7 @@ func batchErrorCode(step batchStep, err error) string {
 }
 
 func countBatchWaitConditions(step batchStep) int {
-	count := countNonEmpty(step.Selector, step.URL, step.Load)
+	count := countNonEmpty(step.Selector, step.URL, step.Load, step.Appear)
 	if step.Text != nil {
 		count++
 	}

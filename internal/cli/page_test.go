@@ -748,6 +748,16 @@ func (d *recordingDriver) Click(_ context.Context, selector string) error {
 	return nil
 }
 
+func (d *recordingDriver) ClickForce(_ context.Context, selector string) error {
+	d.clicked = selector
+	return nil
+}
+
+func (d *recordingDriver) WaitAppear(_ context.Context, selector string) error {
+	d.waitOptions = cdp.WaitOptions{Selector: selector}
+	return nil
+}
+
 func (d *recordingDriver) Type(_ context.Context, selector, text string) error {
 	d.typedSelector = selector
 	d.typedText = text
@@ -859,6 +869,14 @@ func (d *blockingDriver) Snapshot(context.Context) (cdp.SnapshotState, error) {
 
 func (d *blockingDriver) Click(context.Context, string) error {
 	return errors.New("unexpected click")
+}
+
+func (d *blockingDriver) ClickForce(context.Context, string) error {
+	return errors.New("unexpected click")
+}
+
+func (d *blockingDriver) WaitAppear(context.Context, string) error {
+	return errors.New("unexpected wait")
 }
 
 func (d *blockingDriver) Type(context.Context, string, string) error {

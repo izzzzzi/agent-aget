@@ -40,6 +40,16 @@ func (f *fakeDriver) Click(ctx context.Context, selector string) error {
 	return nil
 }
 
+func (f *fakeDriver) ClickForce(ctx context.Context, selector string) error {
+	f.clicked = selector
+	return nil
+}
+
+func (f *fakeDriver) WaitAppear(ctx context.Context, selector string) error {
+	f.waitOptions = cdp.WaitOptions{Selector: selector}
+	return nil
+}
+
 func (f *fakeDriver) Type(ctx context.Context, selector, text string) error {
 	f.typedSelector = selector
 	f.typedText = text

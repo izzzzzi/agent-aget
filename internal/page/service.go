@@ -164,6 +164,22 @@ func (s *Service) ClickTarget(ctx context.Context, target ActionTarget) error {
 	return s.driver.Click(ctx, selector)
 }
 
+func (s *Service) ClickForceTarget(ctx context.Context, target ActionTarget) error {
+	selector, err := s.resolveTarget(target)
+	if err != nil {
+		return err
+	}
+	return s.driver.ClickForce(ctx, selector)
+}
+
+func (s *Service) WaitAppearTarget(ctx context.Context, target ActionTarget) error {
+	selector, err := s.resolveTarget(target)
+	if err != nil {
+		return err
+	}
+	return s.driver.WaitAppear(ctx, selector)
+}
+
 func (s *Service) Type(ctx context.Context, selector, text string) error {
 	return s.driver.Type(ctx, selector, text)
 }

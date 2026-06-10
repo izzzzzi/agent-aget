@@ -121,6 +121,10 @@ aget page read -s SID --limit 40
 # Клик по CSS-селектору
 aget page click -s SID --selector "button[type=submit]"
 
+# Клик с форсированным CDP mouse-событием (для кастомных jQuery/React-компонентов)
+# Использует Input.dispatchMouseEvent с реальными координатами, обходя event.isTrusted
+aget page click -s SID --selector ".custom-widget" --force
+
 # Посимвольный ввод
 aget page type -s SID --selector "input[name=q]" --text "agent browser workflow"
 aget page type -s SID --ref @i1 --text TEXT
@@ -173,7 +177,15 @@ aget page js -s SID --expr "document.querySelector('input[name=x]').click()"
 ### Ожидание, чтение и скролл
 
 ```bash
+# Ожидание текста на странице
 aget page wait -s SID --text "Ready"
+
+# Ожидание появления элемента в DOM (для динамически рендерящихся компонентов)
+aget page wait -s SID --appear ".skill-tag"
+
+# Ожидание видимого элемента
+aget page wait -s SID --selector ".result"
+
 aget page get -s SID text --ref @e1
 aget page get -s SID url
 aget page scroll -s SID --direction down --px 800

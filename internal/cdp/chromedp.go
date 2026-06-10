@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/cdproto/page"
 	cdptarget "github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"
@@ -252,7 +253,7 @@ func snapshotScript() string {
 	      el.innerText || el.getAttribute('aria-label') || el.getAttribute('placeholder') || ''
 	    ).trim().slice(0, 200);
 	  };
-	  const candidates = Array.from(document.querySelectorAll('a,button,input,textarea,select,[role=button],[role=link],[tabindex]'));
+	  const candidates = Array.from(document.querySelectorAll('a,button,input,textarea,select,[role=button],[role=link],[role=option],[role=checkbox],[role=radio],[role=switch],[role=menuitem],[role=listbox],[role=listitem],[tabindex],[onclick],div[data-group-id],span[data-id]'));
 	  return JSON.stringify(candidates.slice(0, 200).map((el, index) => ({
 	    ref: '@e' + (index + 1),
 	    kind: kindFor(el),
@@ -286,6 +287,61 @@ func (d *ChromeDPDriver) Click(ctx context.Context, selector string) error {
 	return d.runActions(ctx, chromedp.Click(selector, chromedp.ByQuery))
 }
 
+func (d *ChromeDPDriver) ClickForce(ctx context.Context, selector string) error {
+	script := fmt.Sprintf(`(() => {
+	  const e = document.querySelector(%q);
+	  if (!e) throw new Error('element not found');
+	  const r = e.getBoundingClientRect();
+	  if (r.width === 0 || r.height === 0) {
+	    // Try to scroll into view and re-check
+	    e.scrollIntoView({block:'center'});
+	    const r2 = e.getBoundingClientRect();
+	    return [r2.left + r2.width/2, r2.top + r2.height/2, Math.max(r2.width,1), Math.max(r2.height,1)];
+	  }
+	  return [r.left + r.width/2, r.top + r.height/2, r.width, r.height];
+	})()`, selector)
+	var result []float64
+	if err := d.runActions(ctx, chromedp.Evaluate(script, &result)); err != nil {
+		return err
+	}
+	if len(result) < 2 {
+		return fmt.Errorf("click force: element %s has no dimensions", selector)
+	}
+	x, y := result[0], result[1]
+	return d.runActions(ctx,
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			return mouseClickAt(ctx, x, y)
+		}),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			// Also dispatch trusted DOM click as fallback
+			script := fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(e){const ev=new MouseEvent('click',{bubbles:true,cancelable:true,view:window,clientX:%f,clientY:%f});e.dispatchEvent(ev)}})()`, selector, x, y)
+			return chromedp.Evaluate(script, nil).Do(ctx)
+		}),
+	)
+}
+
+func mouseClickAt(ctx context.Context, x, y float64) error {
+	if x == 0 {
+		x = 1
+	}
+	if y == 0 {
+		y = 1
+	}
+	if err := input.DispatchMouseEvent(input.MousePressed, x, y).
+		WithButton(input.Left).
+		WithClickCount(1).
+		Do(ctx); err != nil {
+		return err
+	}
+	if err := input.DispatchMouseEvent(input.MouseReleased, x, y).
+		WithButton(input.Left).
+		WithClickCount(1).
+		Do(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (d *ChromeDPDriver) Type(ctx context.Context, selector, text string) error {
 	return d.runActions(ctx, chromedp.SendKeys(selector, text, chromedp.ByQuery))
 }
@@ -298,7 +354,7 @@ func (d *ChromeDPDriver) Fill(ctx context.Context, selector, text string) error 
 }
 
 func (d *ChromeDPDriver) Select(ctx context.Context, selector, value string) error {
-	script := fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e||e.tagName!=='SELECT')throw new Error('not a select element');const wanted=%q;const options=Array.from(e.options);const option=options.find(o=>o.value===wanted)||options.find(o=>o.textContent.trim()===wanted);if(!option)throw new Error('select option not found: '+wanted);e.value=option.value;e.dispatchEvent(new Event('change',{bubbles:true}));e.dispatchEvent(new Event('input',{bubbles:true}));})()`, selector, value)
+	script := fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e||e.tagName!=='SELECT')throw new Error('not a select element');const wanted=%q;const options=Array.from(e.options);const option=options.find(o=>o.value===wanted)||options.find(o=>o.textContent.trim()===wanted);if(!option)throw new Error('select option not found: '+wanted);e.value=option.value;e.dispatchEvent(new Event('change',{bubbles:true}));e.dispatchEvent(new Event('input',{bubbles:true}));if(window.jQuery){try{window.jQuery(e).trigger('change');window.jQuery(e).trigger('change.select2')}catch(_){}}})()`, selector, value)
 	return d.runActions(ctx, chromedp.Evaluate(script, nil))
 }
 
@@ -339,7 +395,7 @@ func (d *ChromeDPDriver) Uncheck(ctx context.Context, selector string) error {
 }
 
 func (d *ChromeDPDriver) Hover(ctx context.Context, selector string) error {
-	script := fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e)throw new Error('element not found');['mouseover','mouseenter','mousemove'].forEach(t=>e.dispatchEvent(new MouseEvent(t,{bubbles:true,cancelable:true})));})()`, selector)
+	script := fmt.Sprintf(`(()=>{const e=document.querySelector(%q);if(!e)throw new Error('element not found');e.focus({preventScroll:true});['mouseover','mouseenter','mousemove'].forEach(t=>e.dispatchEvent(new MouseEvent(t,{bubbles:true,cancelable:true})));})()`, selector)
 	return d.runActions(ctx, chromedp.Evaluate(script, nil))
 }
 
@@ -401,6 +457,11 @@ func (d *ChromeDPDriver) Scroll(ctx context.Context, direction string, pixels in
 		return fmt.Errorf("unsupported scroll direction %q", direction)
 	}
 	return d.runActions(ctx, chromedp.Evaluate(fmt.Sprintf(`window.scrollBy(%d, %d)`, x, y), nil))
+}
+
+func (d *ChromeDPDriver) WaitAppear(ctx context.Context, selector string) error {
+	expr := fmt.Sprintf(`document.querySelector(%q) !== null`, selector)
+	return d.runActions(ctx, chromedp.Poll(expr, nil, chromedp.WithPollingInterval(100*time.Millisecond)))
 }
 
 func (d *ChromeDPDriver) Wait(ctx context.Context, options WaitOptions) error {
