@@ -8,6 +8,7 @@ import (
 
 	"github.com/izzzzzi/agent-aget/internal/cdp"
 	"github.com/izzzzzi/agent-aget/internal/clean"
+	"github.com/izzzzzi/agent-aget/internal/policy"
 	"github.com/izzzzzi/agent-aget/internal/snapshot"
 )
 
@@ -23,8 +24,10 @@ type RefResolver interface {
 }
 
 type Service struct {
-	driver   cdp.Driver
-	resolver RefResolver
+	driver    cdp.Driver
+	resolver  RefResolver
+	policy    *policy.Policy
+	confirmed bool
 }
 
 type ReadOptions struct {
@@ -92,12 +95,53 @@ type GetOptions struct {
 	Target ActionTarget
 }
 
+var (
+	ErrActionDenied               = errors.New("action denied by policy")
+	ErrActionRequiresConfirmation = errors.New("action requires confirmation")
+)
+
 func NewService(driver cdp.Driver) *Service {
 	return &Service{driver: driver}
 }
 
 func NewServiceWithRefs(driver cdp.Driver, resolver RefResolver) *Service {
 	return &Service{driver: driver, resolver: resolver}
+}
+
+// WithPolicy attaches an action policy to the service.
+func (s *Service) WithPolicy(p *policy.Policy) *Service {
+	s.policy = p
+	return s
+}
+
+// WithConfirmed marks the service as having explicit agent confirmation,
+// which bypasses any RequireConfirm policy rules.
+func (s *Service) WithConfirmed(confirmed bool) *Service {
+	s.confirmed = confirmed
+	return s
+}
+
+// checkPolicy evaluates the action against the policy.
+func (s *Service) checkPolicy(ctx context.Context, action string) error {
+	if s.policy == nil || !s.policy.IsLoaded() {
+		return nil
+	}
+	// Fetch current URL for URL-pattern rules.
+	url := ""
+	if ps, err := s.driver.Read(ctx); err == nil {
+		url = ps.URL
+	}
+	r := s.policy.CheckWithConfirm(action, url, s.confirmed)
+	switch r {
+	case policy.Allow:
+		return nil
+	case policy.Deny:
+		return ErrActionDenied
+	case policy.ConfirmRequired:
+		return ErrActionRequiresConfirmation
+	default:
+		return ErrActionDenied
+	}
 }
 
 func (s *Service) Read(ctx context.Context, options ReadOptions) (ReadResult, error) {
@@ -184,6 +228,9 @@ func (s *Service) Find(ctx context.Context, criteria cdp.FindCriteria) (string, 
 }
 
 func (s *Service) Click(ctx context.Context, selector string) error {
+	if err := s.checkPolicy(ctx, "click"); err != nil {
+		return err
+	}
 	return s.driver.Click(ctx, selector)
 }
 
@@ -216,6 +263,9 @@ func (s *Service) Type(ctx context.Context, selector, text string) error {
 }
 
 func (s *Service) TypeTarget(ctx context.Context, target ActionTarget, text string) error {
+	if err := s.checkPolicy(ctx, "type"); err != nil {
+		return err
+	}
 	selector, err := s.resolveTarget(target)
 	if err != nil {
 		return err
@@ -224,6 +274,9 @@ func (s *Service) TypeTarget(ctx context.Context, target ActionTarget, text stri
 }
 
 func (s *Service) Fill(ctx context.Context, options FillOptions) error {
+	if err := s.checkPolicy(ctx, "fill"); err != nil {
+		return err
+	}
 	selector, err := s.resolveTarget(options.Target)
 	if err != nil {
 		return err
@@ -248,6 +301,9 @@ func (s *Service) Is(ctx context.Context, target ActionTarget, prop string) (boo
 }
 
 func (s *Service) Eval(ctx context.Context, expression string) (string, error) {
+	if err := s.checkPolicy(ctx, "js"); err != nil {
+		return "", err
+	}
 	return s.driver.Eval(ctx, expression)
 }
 

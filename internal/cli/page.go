@@ -11,6 +11,7 @@ import (
 
 	"github.com/izzzzzi/agent-aget/internal/cdp"
 	"github.com/izzzzzi/agent-aget/internal/page"
+	"github.com/izzzzzi/agent-aget/internal/policy"
 	sessionstore "github.com/izzzzzi/agent-aget/internal/session"
 	"github.com/izzzzzi/agent-aget/internal/snapshot"
 	"github.com/izzzzzi/agent-aget/internal/state"
@@ -244,6 +245,7 @@ func newPageClickCommand() *cobra.Command {
 	var selector string
 	var ref string
 	var force bool
+	var clickConfirm bool
 	cmd := &cobra.Command{
 		Use:   "click",
 		Short: "Click an element on the current page",
@@ -263,6 +265,7 @@ func newPageClickCommand() *cobra.Command {
 			if err != nil {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
+			svc = svc.WithConfirmed(clickConfirm)
 			target := page.ActionTarget{SID: sid, Selector: selector, Ref: ref}
 			var clickErr error
 			if force {
@@ -291,6 +294,7 @@ func newPageClickCommand() *cobra.Command {
 	cmd.Flags().StringVar(&selector, "selector", "", "css selector")
 	cmd.Flags().StringVar(&ref, "ref", "", "snapshot ref")
 	cmd.Flags().BoolVar(&force, "force", false, "force click via CDP mouse events at element coordinates")
+	cmd.Flags().BoolVar(&clickConfirm, "confirm", false, "override RequireConfirm policy rules")
 	configureAgentHelp(cmd)
 	return cmd
 }
@@ -1172,10 +1176,16 @@ func pageServiceForRecord(ctx context.Context, record sessionstore.Record, withR
 	if err != nil {
 		return nil, err
 	}
+	var svc *page.Service
 	if withRefs {
-		return page.NewServiceWithRefs(driver, snapshot.NewStore(state.SnapshotsDir())), nil
+		svc = page.NewServiceWithRefs(driver, snapshot.NewStore(state.SnapshotsDir()))
+	} else {
+		svc = page.NewService(driver)
 	}
-	return page.NewService(driver), nil
+	if p, err := loadPolicy(); err == nil && p != nil {
+		svc = svc.WithPolicy(p)
+	}
+	return svc, nil
 }
 
 func validateSelectorOrRef(cmd *cobra.Command, selector, ref string) error {
@@ -1186,6 +1196,11 @@ func validateSelectorOrRef(cmd *cobra.Command, selector, ref string) error {
 		return writeInvalidArgs(cmd, "selector and ref are mutually exclusive")
 	}
 	return nil
+}
+
+func loadPolicy() (*policy.Policy, error) {
+	path := os.Getenv("AGET_POLICY")
+	return policy.Load(path)
 }
 
 func writePageActionError(cmd *cobra.Command, sid, selector, ref string, err error) error {
@@ -1203,6 +1218,14 @@ func writePageActionError(cmd *cobra.Command, sid, selector, ref string, err err
 	if errors.Is(err, cdp.ErrElementOccluded) {
 		details["hint"] = "dismiss the overlay/banner first, or retry with --force to click via CDP coordinates"
 		return writeError(cmd, "element_occluded", err.Error(), details)
+	}
+	if errors.Is(err, page.ErrActionDenied) {
+		details["hint"] = "set AGET_POLICY to a file with {allow: true} for this action"
+		return writeError(cmd, "action_denied", err.Error(), details)
+	}
+	if errors.Is(err, page.ErrActionRequiresConfirmation) {
+		details["hint"] = "retry with --confirm"
+		return writeError(cmd, "action_requires_confirmation", err.Error(), details)
 	}
 	return writeError(cmd, "page_action_failed", err.Error(), details)
 }
