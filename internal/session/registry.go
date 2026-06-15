@@ -25,6 +25,7 @@ type Record struct {
 	BrowserPID int       `json:"browser_pid"`
 	DebugURL   string    `json:"debug_url"`
 	Headless   bool      `json:"headless"`
+	Clean      bool      `json:"clean,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 }

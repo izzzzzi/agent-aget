@@ -91,6 +91,7 @@ func newOpenCommand() *cobra.Command {
 	var cookieInput string
 	var profileName string
 	var deviceName string
+	var cleanMode bool
 	cmd := &cobra.Command{
 		Use:   "open URL",
 		Short: "Open a URL in a managed browser session",
@@ -220,6 +221,7 @@ func newOpenCommand() *cobra.Command {
 				BrowserPID: process.PID,
 				DebugURL:   process.DebugURL,
 				Headless:   !headful,
+				Clean:      cleanMode,
 				CreatedAt:  now,
 				UpdatedAt:  now,
 			}
@@ -258,6 +260,7 @@ func newOpenCommand() *cobra.Command {
 	cmd.Flags().StringVar(&cookieInput, "cookies", "", "cookies to inject (file path for Netscape format, or inline name=value; pairs)")
 	cmd.Flags().StringVar(&profileName, "profile", "", "persistent browser profile to use (created with aget profile create)")
 	cmd.Flags().StringVar(&deviceName, "device", "", "device preset: mobile, tablet, or desktop (default: desktop)")
+	cmd.Flags().BoolVar(&cleanMode, "clean", false, "trim boilerplate noise (cookie banners, nav, duplicates) from page read output in the Go layer; off by default, no page mutation")
 	configureAgentHelp(cmd)
 	return cmd
 }

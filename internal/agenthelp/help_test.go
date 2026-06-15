@@ -77,6 +77,33 @@ func TestBatchAndDoctorGroupHelp(t *testing.T) {
 	}
 }
 
+func TestCleanModeDiscoverable(t *testing.T) {
+	// The --clean flag must be visible to LLM agents through the JSON help
+	// surfaces they actually read (root help, page group help, and prompt).
+	if RootHelp().Commands["page_read_clean"] == "" {
+		t.Fatal("root help missing page_read_clean command")
+	}
+	page, ok := GroupHelp("page")
+	if !ok {
+		t.Fatal("page help missing")
+	}
+	for _, key := range []string{"read_clean", "read_no_clean"} {
+		if page.Commands[key] == "" {
+			t.Fatalf("page help missing %q: %#v", key, page.Commands)
+		}
+	}
+	open, ok := GroupHelp("open")
+	if !ok {
+		t.Fatal("open help missing")
+	}
+	if open.Commands["open_clean"] == "" {
+		t.Fatal("open help missing open_clean command")
+	}
+	if !contains(Prompt().Prompt, "--clean") {
+		t.Fatal("prompt does not mention --clean")
+	}
+}
+
 func TestGroupHelpUnknown(t *testing.T) {
 	if _, ok := GroupHelp("missing"); ok {
 		t.Fatal("GroupHelp(missing) ok = true, want false")

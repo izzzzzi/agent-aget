@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/izzzzzi/agent-aget/internal/cdp"
+	"github.com/izzzzzi/agent-aget/internal/clean"
 	"github.com/izzzzzi/agent-aget/internal/snapshot"
 )
 
@@ -27,17 +28,20 @@ type Service struct {
 
 type ReadOptions struct {
 	Limit int
+	Clean bool
 }
 
 type ReadResult struct {
-	OK        bool          `json:"ok"`
-	URL       string        `json:"url"`
-	Title     string        `json:"title"`
-	Text      []string      `json:"text"`
-	Truncated bool          `json:"truncated"`
-	Links     []cdp.Element `json:"links,omitempty"`
-	Buttons   []cdp.Element `json:"buttons,omitempty"`
-	Inputs    []cdp.Element `json:"inputs,omitempty"`
+	OK           bool          `json:"ok"`
+	URL          string        `json:"url"`
+	Title        string        `json:"title"`
+	Text         []string      `json:"text"`
+	Truncated    bool          `json:"truncated"`
+	CleanEnabled bool          `json:"clean_enabled"`
+	CleanDropped int           `json:"clean_dropped"`
+	Links        []cdp.Element `json:"links,omitempty"`
+	Buttons      []cdp.Element `json:"buttons,omitempty"`
+	Inputs       []cdp.Element `json:"inputs,omitempty"`
 }
 
 type SnapshotOptions struct {
@@ -100,6 +104,12 @@ func (s *Service) Read(ctx context.Context, options ReadOptions) (ReadResult, er
 	}
 
 	lines := compactLines(state.Text)
+
+	dropped := 0
+	if options.Clean {
+		lines, dropped = clean.Extract(lines)
+	}
+
 	limit := options.Limit
 	if limit <= 0 {
 		limit = 80
@@ -112,14 +122,16 @@ func (s *Service) Read(ctx context.Context, options ReadOptions) (ReadResult, er
 	}
 
 	return ReadResult{
-		OK:        true,
-		URL:       state.URL,
-		Title:     state.Title,
-		Text:      lines,
-		Truncated: truncated,
-		Links:     state.Links,
-		Buttons:   state.Buttons,
-		Inputs:    state.Inputs,
+		OK:           true,
+		URL:          state.URL,
+		Title:        state.Title,
+		Text:         lines,
+		Truncated:    truncated,
+		CleanEnabled: options.Clean,
+		CleanDropped: dropped,
+		Links:        state.Links,
+		Buttons:      state.Buttons,
+		Inputs:       state.Inputs,
 	}, nil
 }
 

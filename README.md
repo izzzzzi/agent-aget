@@ -115,6 +115,24 @@ aget page read -s SID
 aget page read -s SID --limit 40
 ```
 
+#### Очистка шума (`--clean`)
+
+Для read-heavy задач `--clean` убирает boilerplate-шум из текста страницы (cookie-баннеры, навигацию, повторяющиеся строки) и экономит токены. Работает **в Go-слое над уже захваченным текстом** — не трогает живой DOM, поэтому stealth не страдает. Это снижение шума, не защита от prompt injection и не маскировка PII.
+
+```bash
+# Разовая очистка для одного read
+aget page read -s SID --clean
+
+# Включить для всей сессии
+aget open https://example.com --clean
+AGET_CLEAN=1 aget open https://example.com
+
+# Отключить, если кажется что пропал нужный контент
+aget page read -s SID --no-clean
+```
+
+Очистка выключена по умолчанию и только удаляет не-основные строки (точные дубли и известные паттерны chrome) — основной контент не трогается. В ответе появляются `clean_enabled` и `clean_dropped` (сколько строк убрано). Приоритет: `--no-clean` > `--clean` > `AGET_CLEAN` > значение сессии.
+
 ### Ввод и взаимодействие
 
 ```bash
@@ -300,6 +318,8 @@ aget open URL -n NAME
 
 Сохрани returned sid. Для понимания страницы сначала используй:
 aget page read -s SID --limit 80
+Для read-heavy задач добавь --clean чтобы убрать boilerplate и сэкономить токены; --no-clean если контент пропал:
+aget page read -s SID --limit 80 --clean
 
 Для действий предпочитай snapshot refs перед CSS-селекторами:
 aget page snapshot -s SID
@@ -345,7 +365,7 @@ Codex: Используй `aget` для браузерных задач. Нач�
 ```
 
 ```text
-Claude Code: Перед browser-work установи/запусти `aget`. Для каждой страницы используй returned sid и JSON `next_commands`; начинай с `aget page snapshot`, действуй через refs (`fill/select/check/is`), используй `page wait/get/scroll/batch` для многошаговых workflow и делай screenshot, когда важен layout или текстового чтения недостаточно. Для постоянных кук — `aget profile create` и `open --profile`.
+Claude Code: Перед browser-work установи/запусти `aget`. Для каждой страницы используй returned sid и JSON `next_commands`; начинай с `aget page snapshot`, действуй через refs (`fill/select/check/is`), используй `page wait/get/scroll/batch` для многошаговых workflow и делай screenshot, когда важен layout или текстового чтения недостаточно. Для read-heavy задач добавь `--clean` к `aget page read` (убирает boilerplate и экономит токены; `--no-clean` если контент пропал). Для постоянных кук — `aget profile create` и `open --profile`.
 ```
 
 ```text
@@ -357,6 +377,7 @@ OpenCode: Используй `aget open`, затем `aget page snapshot/read/cl
 - `AGET_BROWSER_PATH` - путь к Chromium-совместимому браузеру.
 - `AGET_BROWSER_CACHE_DIR` - каталог cache для managed CloakBrowser.
 - `AGET_STATE_DIR` - каталог локального состояния, сессий, профилей и артефактов.
+- `AGET_CLEAN=1` - включить очистку шума (`--clean`) по умолчанию для `page read`.
 - `AGET_SKIP_BROWSER_DOWNLOAD=1` - пропустить установку managed CloakBrowser во время npm `postinstall`.
 - `AGENT_AGET_SKIP_DOWNLOAD=1` - dev/test-only: пропустить скачивание native-бинаря в npm `postinstall` и записать тестовый исполняемый файл.
 

@@ -61,6 +61,8 @@ func newPageCommand() *cobra.Command {
 func newPageReadCommand() *cobra.Command {
 	var sid string
 	var limit int
+	var cleanFlag bool
+	var noCleanFlag bool
 	cmd := &cobra.Command{
 		Use:   "read",
 		Short: "Read the current page",
@@ -78,7 +80,8 @@ func newPageReadCommand() *cobra.Command {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
 
-			result, err := page.NewService(driver).Read(ctx, page.ReadOptions{Limit: limit})
+			cleanMode := resolveCleanMode(cmd, record.Clean, cleanFlag, noCleanFlag)
+			result, err := page.NewService(driver).Read(ctx, page.ReadOptions{Limit: limit, Clean: cleanMode})
 			if err != nil {
 				return writeError(cmd, "page_read_failed", err.Error(), map[string]any{"sid": sid})
 			}
@@ -88,8 +91,26 @@ func newPageReadCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
 	cmd.Flags().IntVar(&limit, "limit", 80, "maximum number of lines")
+	cmd.Flags().BoolVar(&cleanFlag, "clean", false, "trim boilerplate noise (cookie banners, nav, duplicates) from output; overrides session default")
+	cmd.Flags().BoolVar(&noCleanFlag, "no-clean", false, "disable boilerplate trimming even if the session enabled it")
 	configureAgentHelp(cmd)
 	return cmd
+}
+
+// resolveCleanMode decides whether boilerplate trimming is active for a read.
+// Precedence: explicit --no-clean > explicit --clean > AGET_CLEAN env > the
+// session default captured at open time.
+func resolveCleanMode(cmd *cobra.Command, sessionDefault, cleanFlag, noCleanFlag bool) bool {
+	if cmd.Flags().Changed("no-clean") && noCleanFlag {
+		return false
+	}
+	if cmd.Flags().Changed("clean") {
+		return cleanFlag
+	}
+	if env := os.Getenv("AGET_CLEAN"); env == "1" || strings.EqualFold(env, "true") {
+		return true
+	}
+	return sessionDefault
 }
 
 func newPageClickCommand() *cobra.Command {

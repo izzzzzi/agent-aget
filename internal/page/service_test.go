@@ -136,6 +136,45 @@ func TestReadLimitsTextLines(t *testing.T) {
 	if len(got.Links) != 1 || got.Links[0].Text != "More" {
 		t.Fatalf("links = %#v", got.Links)
 	}
+	if got.CleanEnabled {
+		t.Fatalf("clean must be off by default, got CleanEnabled=true")
+	}
+}
+
+func TestReadCleanDropsBoilerplate(t *testing.T) {
+	driver := &fakeDriver{
+		state: cdp.PageState{
+			URL:   "https://example.com",
+			Title: "Example",
+			Text:  "We use cookies to improve your experience.\nAccept all\nReal heading\nBody text.",
+		},
+	}
+	service := NewService(driver)
+
+	// Default (clean off): boilerplate is preserved.
+	plain, err := service.Read(context.Background(), ReadOptions{Limit: 80})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plain.Text) != 4 {
+		t.Fatalf("clean off: expected 4 lines, got %#v", plain.Text)
+	}
+
+	// Clean on: boilerplate dropped, content kept.
+	got, err := service.Read(context.Background(), ReadOptions{Limit: 80, Clean: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.CleanEnabled {
+		t.Fatalf("CleanEnabled = false, want true")
+	}
+	if got.CleanDropped != 2 {
+		t.Fatalf("CleanDropped = %d, want 2", got.CleanDropped)
+	}
+	want := []string{"Real heading", "Body text."}
+	if len(got.Text) != 2 || got.Text[0] != want[0] || got.Text[1] != want[1] {
+		t.Fatalf("text = %#v, want %#v", got.Text, want)
+	}
 }
 
 func TestClickAndTypeDelegateToDriver(t *testing.T) {

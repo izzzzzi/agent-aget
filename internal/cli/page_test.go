@@ -13,6 +13,40 @@ import (
 	"github.com/izzzzzi/agent-aget/internal/state"
 )
 
+func TestResolveCleanModePrecedence(t *testing.T) {
+	t.Setenv("AGET_CLEAN", "")
+	cases := []struct {
+		name         string
+		args         []string
+		env          string
+		sessionClean bool
+		want         bool
+	}{
+		{"default off", nil, "", false, false},
+		{"session default on", nil, "", true, true},
+		{"env on overrides session off", nil, "1", false, true},
+		{"explicit --clean", []string{"--clean"}, "", false, true},
+		{"explicit --no-clean beats session on", []string{"--no-clean"}, "", true, false},
+		{"explicit --no-clean beats env on", []string{"--no-clean"}, "1", true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AGET_CLEAN", tc.env)
+			cmd := newPageReadCommand()
+			cmd.SetArgs(append([]string{"-s", "x"}, tc.args...))
+			if err := cmd.ParseFlags(append([]string{"-s", "x"}, tc.args...)); err != nil {
+				t.Fatal(err)
+			}
+			cleanFlag, _ := cmd.Flags().GetBool("clean")
+			noCleanFlag, _ := cmd.Flags().GetBool("no-clean")
+			got := resolveCleanMode(cmd, tc.sessionClean, cleanFlag, noCleanFlag)
+			if got != tc.want {
+				t.Fatalf("resolveCleanMode = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestPageReadRequiresSID(t *testing.T) {
 	stdout, stderr, err := executeForTest("page", "read")
 	if err == nil {
