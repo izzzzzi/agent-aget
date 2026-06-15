@@ -13,8 +13,12 @@
 
 ## Состояние
 
-- ✅ `--clean` (Go-side token-trim) — реализован, не закоммичен. См. `shield-mode.md`.
-- 🔴 `internal/cookies` тест падает на стоке `main` — pre-existing, починить до мержа.
+- ✅ `--clean` (Go-side token-trim) — реализован и закоммичен. См. `shield-mode.md`.
+- ✅ cookies-тест починен (time-bomb фикстура).
+- ✅ Волна 1 завершена: `find` семантические локаторы, click-occlusion detection, `snapshot --diff`.
+- ✅ Волна 2 #5: doctor security-проверки (permissions + unused key warning). #4 (шифрование) вырезан — cookies живут в Chromium profile, не в aget JSON.
+- ✅ Волна 4 #7: screenshot --annotate (numbered element markers).
+- ⏭️ Следующее: Волна 3 #6 (action policy) или Волна 4 #8 (streaming server).
 
 ## Roadmap
 
