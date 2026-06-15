@@ -77,6 +77,20 @@ func TestBatchAndDoctorGroupHelp(t *testing.T) {
 	}
 }
 
+func TestAnnotatedScreenshotDiscoverable(t *testing.T) {
+	r := RootHelp()
+	if r.Commands["page_screenshot_ann"] == "" {
+		t.Fatal("root help missing page_screenshot_ann")
+	}
+	page, ok := GroupHelp("page")
+	if !ok {
+		t.Fatal("page help missing")
+	}
+	if page.Commands["screenshot_ann"] == "" {
+		t.Fatalf("page help missing screenshot_ann: %#v", page.Commands)
+	}
+}
+
 func TestSnapshotDiffDiscoverable(t *testing.T) {
 	if RootHelp().Commands["page_snapshot_diff"] == "" {
 		t.Fatal("root help missing page_snapshot_diff command")

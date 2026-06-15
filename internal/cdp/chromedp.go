@@ -541,11 +541,104 @@ func (d *ChromeDPDriver) Get(ctx context.Context, options GetOptions) (string, e
 }
 
 func (d *ChromeDPDriver) Screenshot(ctx context.Context, path string) error {
-	var body []byte
-	if err := d.runActionsWithTransientRetry(ctx, chromedp.FullScreenshot(&body, 90)); err != nil {
+	body, err := d.CaptureScreenshot(ctx)
+	if err != nil {
 		return err
 	}
 	return writeScreenshot(path, body)
+}
+
+// CaptureScreenshot captures a full-page screenshot as PNG bytes.
+func (d *ChromeDPDriver) CaptureScreenshot(ctx context.Context) ([]byte, error) {
+	var body []byte
+	if err := d.runActionsWithTransientRetry(ctx, chromedp.FullScreenshot(&body, 90)); err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+// AnnotatedScreenshot captures a full-page screenshot with numbered markers
+// overlaid on each element. Each marker displays the element's ref (e.g.
+// "@e1") at its center, positioned with fixed coordinates and
+// pointer-events:none so nothing is interactive. Markers are removed after
+// the capture.
+func (d *ChromeDPDriver) AnnotatedScreenshot(ctx context.Context, path string, elements []Element) error {
+	script := buildAnnotationScript(elements)
+	var cleanup []string
+	if err := d.runActions(ctx, chromedp.Evaluate(script, &cleanup)); err != nil {
+		return err
+	}
+	body, err := d.CaptureScreenshot(ctx)
+	if err != nil {
+		return err
+	}
+	// Clean up markers (best-effort).
+	_ = d.runActions(ctx, chromedp.Evaluate(cleanupScript(cleanup), nil))
+	return writeScreenshot(path, body)
+}
+
+// buildAnnotationScript generates JS that creates a numbered label for each
+// element at its bounding-box center and returns a list of marker node IDs
+// for cleanup.
+func buildAnnotationScript(elements []Element) string {
+	script := `(() => {
+	  const markers = [];
+	  const els = ` + elementJSON(elements) + `;
+	  els.forEach((el, i) => {
+	    try {
+	      const node = document.querySelector(el.selector);
+	      if (!node) return;
+	      const r = node.getBoundingClientRect();
+	      if (r.width === 0 || r.height === 0) return;
+	      const m = document.createElement('div');
+	      m.id = '_ag_ann_' + i;
+	      m.textContent = el.ref || '@' + (i + 1);
+	      Object.assign(m.style, {
+	        position: 'fixed',
+	        left: r.left + 'px',
+	        top: r.top + 'px',
+	        zIndex: 2147483647,
+	        pointerEvents: 'none',
+	        background: 'rgba(0,120,215,0.8)',
+	        color: '#fff',
+	        font: 'bold 13px/1.4 monospace',
+	        padding: '2px 5px',
+	        borderRadius: '3px',
+	        whiteSpace: 'nowrap',
+	      });
+	      document.body.appendChild(m);
+	      markers.push(m.id);
+	    } catch(e) {}
+	  });
+	  return markers;
+	})()`
+	return script
+}
+
+type annElement struct {
+	Ref      string `json:"ref"`
+	Selector string `json:"selector"`
+}
+
+func elementJSON(elements []Element) string {
+	ae := make([]annElement, 0, len(elements))
+	for _, e := range elements {
+		if e.Selector != "" {
+			ae = append(ae, annElement{Ref: e.Ref, Selector: e.Selector})
+		}
+	}
+	b, _ := json.Marshal(ae)
+	return string(b)
+}
+
+func cleanupScript(ids []string) string {
+	script := `(() => {
+	  ["` + strings.Join(ids, `","`) + `"].forEach(function(id) {
+	    var m = document.getElementById(id);
+	    if (m) m.remove();
+	  });
+	})()`
+	return script
 }
 
 func (d *ChromeDPDriver) Close(ctx context.Context) error {

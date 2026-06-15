@@ -65,5 +65,6 @@ type Driver interface {
 	DialogAccept(ctx context.Context, promptText string) error
 	DialogDismiss(ctx context.Context) error
 	Screenshot(ctx context.Context, path string) error
+	AnnotatedScreenshot(ctx context.Context, path string, elements []Element) error
 	Close(ctx context.Context) error
 }

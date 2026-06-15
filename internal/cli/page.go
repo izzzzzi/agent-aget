@@ -652,6 +652,7 @@ func newPageGetCommand() *cobra.Command {
 func newPageScreenshotCommand() *cobra.Command {
 	var sid string
 	var path string
+	var annotate bool
 	cmd := &cobra.Command{
 		Use:   "screenshot",
 		Short: "Capture a page screenshot",
@@ -664,7 +665,7 @@ func newPageScreenshotCommand() *cobra.Command {
 			ctx, cancel := pageOperationContext()
 			defer cancel()
 
-			driver, err := newChromeDPDriver(ctx, record.DebugURL)
+			svc, err := pageServiceForRecord(ctx, record, annotate)
 			if err != nil {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
@@ -684,14 +685,27 @@ func newPageScreenshotCommand() *cobra.Command {
 			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 				return writeError(cmd, "page_screenshot_failed", err.Error(), map[string]any{"sid": sid})
 			}
-			if err := page.NewService(driver).Screenshot(ctx, path); err != nil {
-				return writeError(cmd, "page_screenshot_failed", err.Error(), map[string]any{"sid": sid, "path": path})
+
+			if annotate {
+				// Take a snapshot first to get elements with refs.
+				snap, err := svc.Snapshot(ctx, page.SnapshotOptions{SID: sid})
+				if err != nil {
+					return writeError(cmd, "page_snapshot_failed", err.Error(), map[string]any{"sid": sid})
+				}
+				if err := svc.ScreenshotAnnotated(ctx, path, snap.Elements); err != nil {
+					return writeError(cmd, "page_screenshot_failed", err.Error(), map[string]any{"sid": sid, "path": path})
+				}
+			} else {
+				if err := svc.Screenshot(ctx, path); err != nil {
+					return writeError(cmd, "page_screenshot_failed", err.Error(), map[string]any{"sid": sid, "path": path})
+				}
 			}
 			return writeJSON(cmd, map[string]any{"ok": true, "sid": sid, "path": path})
 		},
 	}
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
 	cmd.Flags().StringVar(&path, "path", "", "artifact path")
+	cmd.Flags().BoolVar(&annotate, "annotate", false, "add numbered element markers (takes a snapshot first)")
 	configureAgentHelp(cmd)
 	return cmd
 }

@@ -332,6 +332,12 @@ func (s *Service) Screenshot(ctx context.Context, path string) error {
 	return s.driver.Screenshot(ctx, path)
 }
 
+// ScreenshotAnnotated captures a screenshot with numbered markers for each
+// element from the last snapshot, then removes the markers.
+func (s *Service) ScreenshotAnnotated(ctx context.Context, path string, elements []cdp.Element) error {
+	return s.driver.AnnotatedScreenshot(ctx, path, elements)
+}
+
 func (s *Service) getSelector(options GetOptions) (string, error) {
 	switch options.Kind {
 	case "url", "title":

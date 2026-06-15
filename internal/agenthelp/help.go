@@ -72,6 +72,7 @@ func RootHelp() HelpPayload {
 			"page_dialog_accept":  "aget page dialog-accept -s SID",
 			"page_dialog_dismiss": "aget page dialog-dismiss -s SID",
 			"page_screenshot":     "aget page screenshot -s SID --path /tmp/page.png",
+			"page_screenshot_ann": "aget page screenshot -s SID --path /tmp/page.png --annotate",
 			"session_list":        "aget session list",
 			"session_close":       "aget session close -s SID",
 			"prompt":              "aget prompt",
@@ -91,6 +92,7 @@ func GroupHelp(name string) (HelpPayload, bool) {
 				"Use find with --role/--name/--text/--placeholder/--testid for semantic locators that survive layout changes better than CSS; add --nth to disambiguate",
 				"find can act in one step with --action click|fill|type|select|check|uncheck|hover|focus (fill/type need --action-text, select needs --value)",
 				"After an action, use snapshot --diff to see only what changed (added/removed/changed elements) and save tokens",
+				"Use screenshot --annotate for numbered element markers on the image (bridges text snapshot with visual)",
 				"Use select for dropdowns, check/uncheck for checkboxes and radios",
 				"Use js as a universal fallback for elements not covered by other commands",
 				"Use screenshot when text output is insufficient",
@@ -129,6 +131,7 @@ func GroupHelp(name string) (HelpPayload, bool) {
 				"dialog_accept":   "aget page dialog-accept -s SID",
 				"dialog_dismiss":  "aget page dialog-dismiss -s SID",
 				"screenshot":      "aget page screenshot -s SID --path /tmp/page.png",
+				"screenshot_ann":  "aget page screenshot -s SID --path /tmp/page.png --annotate",
 			},
 		},
 		"browser": {

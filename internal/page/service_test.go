@@ -116,6 +116,11 @@ func (f *fakeDriver) Screenshot(ctx context.Context, path string) error {
 	return nil
 }
 
+func (f *fakeDriver) AnnotatedScreenshot(ctx context.Context, path string, elements []cdp.Element) error {
+	f.screenshotPath = path
+	return nil
+}
+
 func (f *fakeDriver) Close(ctx context.Context) error {
 	f.closed = true
 	return nil

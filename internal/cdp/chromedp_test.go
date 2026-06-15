@@ -169,6 +169,49 @@ func TestClickDetectsOcclusion(t *testing.T) {
 	}
 }
 
+func TestAnnotatedScreenshotCreatesAndCleansMarkers(t *testing.T) {
+	if os.Getenv("AGET_RUN_CHROME_TESTS") != "1" {
+		t.Skip("set AGET_RUN_CHROME_TESTS=1 to run live Chrome annotation tests")
+	}
+
+	ctx, cancel := chromedp.NewContext(context.Background())
+	defer cancel()
+	html := `<button id="go">Submit</button><a href="/">Home</a>`
+	if err := chromedp.Run(ctx, chromedp.Navigate("data:text/html,"+strings.ReplaceAll(html, "#", "%23"))); err != nil {
+		t.Fatal(err)
+	}
+	driver := &ChromeDPDriver{ctx: ctx, run: chromedp.Run}
+
+	elements := []Element{
+		{Ref: "@e1", Selector: "#go"},
+		{Ref: "@e2", Selector: "a"},
+	}
+	dst := filepath.Join(t.TempDir(), "annotated.png")
+	if err := driver.AnnotatedScreenshot(context.Background(), dst, elements); err != nil {
+		t.Fatalf("AnnotatedScreenshot: %v", err)
+	}
+
+	// Verify the file exists and is non-empty.
+	fi, err := os.Stat(dst)
+	if err != nil {
+		t.Fatalf("screenshot not created: %v", err)
+	}
+	if fi.Size() < 100 {
+		t.Fatalf("screenshot too small: %d bytes", fi.Size())
+	}
+
+	// Verify markers were cleaned up — the overlay divs should be gone.
+	var count int
+	if err := chromedp.Run(ctx, chromedp.Evaluate(
+		`document.querySelectorAll('[id^="_ag_ann_"]').length`, &count,
+	)); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("%d markers remain after cleanup", count)
+	}
+}
+
 func TestFindRejectsEmptyCriteria(t *testing.T) {
 	driver := &ChromeDPDriver{ctx: context.Background(), run: chromedp.Run}
 	if _, err := driver.Find(context.Background(), FindCriteria{}); err == nil {

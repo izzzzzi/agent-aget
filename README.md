@@ -245,6 +245,13 @@ aget page screenshot -s SID
 aget page screenshot -s SID --path /tmp/page.png
 ```
 
+Сделать скриншот с нумерованными элементами (сначала делает snapshot для определения позиций, затем накладывает метки `@e1`/`@i1`):
+
+```bash
+aget page screenshot -s SID --annotate
+aget page screenshot -s SID --path /tmp/page.png --annotate
+```
+
 Выполнить несколько шагов одной JSON batch-командой:
 
 ```bash

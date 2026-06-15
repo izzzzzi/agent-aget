@@ -972,6 +972,10 @@ func (d *recordingDriver) Screenshot(context.Context, string) error {
 	return errors.New("unexpected screenshot")
 }
 
+func (d *recordingDriver) AnnotatedScreenshot(context.Context, string, []cdp.Element) error {
+	return errors.New("unexpected annotated screenshot")
+}
+
 func (d *recordingDriver) Close(context.Context) error {
 	d.closed = true
 	return nil
@@ -1073,6 +1077,10 @@ func (d *blockingDriver) DialogDismiss(context.Context) error {
 
 func (d *blockingDriver) Screenshot(context.Context, string) error {
 	return errors.New("unexpected screenshot")
+}
+
+func (d *blockingDriver) AnnotatedScreenshot(context.Context, string, []cdp.Element) error {
+	return nil
 }
 
 func (d *blockingDriver) Close(context.Context) error {
