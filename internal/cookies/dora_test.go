@@ -1,6 +1,7 @@
 package cookies
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -81,7 +82,11 @@ example.com	FALSE	/	FALSE	1812061261	cookie:accepted	true
 func TestParseNetscape_DoraHacks_AutoDetect(t *testing.T) {
 	dir := t.TempDir()
 	fpath := dir + "/cookies.txt"
-	data := []byte("example.com\tFALSE\t/\tTRUE\t1781130055\tsession\tabc\n.example.com\tTRUE\t/\tFALSE\t1781821259\ttoken\tdef\n")
+	// Use future-relative expiries so the fixture never rots into expired
+	// cookies (which ParseCookies correctly drops).
+	future := time.Now().AddDate(1, 0, 0).Unix()
+	later := time.Now().AddDate(1, 0, 7).Unix()
+	data := []byte(fmt.Sprintf("example.com\tFALSE\t/\tTRUE\t%d\tsession\tabc\n.example.com\tTRUE\t/\tFALSE\t%d\ttoken\tdef\n", future, later))
 	if err := os.WriteFile(fpath, data, 0644); err != nil {
 		t.Fatal(err)
 	}
