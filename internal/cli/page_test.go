@@ -149,6 +149,88 @@ func TestPageClickCallsDriver(t *testing.T) {
 	}
 }
 
+func TestPageFindResolvesSelector(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{findSelector: "#go"}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	stdout, stderr, err := executeForTest("page", "find", "-s", "abc12345", "--role", "button", "--name", "Submit")
+	if err != nil {
+		t.Fatalf("page find failed: %v stderr=%s", err, stderr)
+	}
+	if driver.findCriteria.Role != "button" || driver.findCriteria.Name != "Submit" {
+		t.Fatalf("criteria = %#v", driver.findCriteria)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["ok"] != true || got["selector"] != "#go" {
+		t.Fatalf("response = %#v", got)
+	}
+	if _, hasAction := got["action"]; hasAction {
+		t.Fatalf("no action requested but action present: %#v", got)
+	}
+}
+
+func TestPageFindAndClick(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{findSelector: "#go"}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	stdout, stderr, err := executeForTest("page", "find", "-s", "abc12345", "--text", "Submit", "--action", "click")
+	if err != nil {
+		t.Fatalf("page find click failed: %v stderr=%s", err, stderr)
+	}
+	if driver.clicked != "#go" {
+		t.Fatalf("clicked = %q, want #go", driver.clicked)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["action"] != "click" || got["selector"] != "#go" {
+		t.Fatalf("response = %#v", got)
+	}
+}
+
+func TestPageFindAmbiguousReturnsError(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{findErr: cdp.ErrAmbiguousMatch}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	_, stderr, err := executeForTest("page", "find", "-s", "abc12345", "--role", "link", "--name", "Details")
+	if err == nil {
+		t.Fatal("expected error for ambiguous match")
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(stderr), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["code"] != "locator_ambiguous" {
+		t.Fatalf("code = %v, want locator_ambiguous", got["code"])
+	}
+}
+
+func TestPageFindRequiresCriteria(t *testing.T) {
+	t.Setenv("AGET_STATE_DIR", t.TempDir())
+	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
+	driver := &recordingDriver{}
+	restore := replaceChromeDPDriverForTest(t, driver)
+	defer restore()
+
+	_, _, err := executeForTest("page", "find", "-s", "abc12345")
+	if err == nil {
+		t.Fatal("expected error when no locator flags given")
+	}
+}
+
 func TestPageTypeCallsDriver(t *testing.T) {
 	t.Setenv("AGET_STATE_DIR", t.TempDir())
 	saveTestSession(t, "abc12345", "http://127.0.0.1:9222")
@@ -766,6 +848,9 @@ type recordingDriver struct {
 	dialogAccepted    bool
 	dialogText        string
 	dialogDismissed   bool
+	findCriteria      cdp.FindCriteria
+	findSelector      string
+	findErr           error
 	closed            bool
 }
 
@@ -775,6 +860,11 @@ func (d *recordingDriver) Read(context.Context) (cdp.PageState, error) {
 
 func (d *recordingDriver) Snapshot(context.Context) (cdp.SnapshotState, error) {
 	return d.snapshot, nil
+}
+
+func (d *recordingDriver) Find(_ context.Context, criteria cdp.FindCriteria) (string, error) {
+	d.findCriteria = criteria
+	return d.findSelector, d.findErr
 }
 
 func (d *recordingDriver) Click(_ context.Context, selector string) error {
@@ -895,6 +985,10 @@ func (d *blockingDriver) Read(ctx context.Context) (cdp.PageState, error) {
 	<-ctx.Done()
 	d.readCanceled = true
 	return cdp.PageState{}, ctx.Err()
+}
+
+func (d *blockingDriver) Find(context.Context, cdp.FindCriteria) (string, error) {
+	return "", nil
 }
 
 func (d *blockingDriver) Snapshot(context.Context) (cdp.SnapshotState, error) {

@@ -24,6 +24,9 @@ type fakeDriver struct {
 	getOptions     cdp.GetOptions
 	getResult      string
 	screenshotPath string
+	findCriteria   cdp.FindCriteria
+	findSelector   string
+	findErr        error
 	closed         bool
 }
 
@@ -33,6 +36,11 @@ func (f *fakeDriver) Read(ctx context.Context) (cdp.PageState, error) {
 
 func (f *fakeDriver) Snapshot(ctx context.Context) (cdp.SnapshotState, error) {
 	return f.snapshot, nil
+}
+
+func (f *fakeDriver) Find(ctx context.Context, criteria cdp.FindCriteria) (string, error) {
+	f.findCriteria = criteria
+	return f.findSelector, f.findErr
 }
 
 func (f *fakeDriver) Click(ctx context.Context, selector string) error {

@@ -164,6 +164,11 @@ func (s *Service) Snapshot(ctx context.Context, options SnapshotOptions) (Snapsh
 	}, nil
 }
 
+// Find resolves a semantic locator to a unique CSS selector.
+func (s *Service) Find(ctx context.Context, criteria cdp.FindCriteria) (string, error) {
+	return s.driver.Find(ctx, criteria)
+}
+
 func (s *Service) Click(ctx context.Context, selector string) error {
 	return s.driver.Click(ctx, selector)
 }

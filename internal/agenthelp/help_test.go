@@ -77,6 +77,24 @@ func TestBatchAndDoctorGroupHelp(t *testing.T) {
 	}
 }
 
+func TestFindDiscoverable(t *testing.T) {
+	if RootHelp().Commands["page_find"] == "" {
+		t.Fatal("root help missing page_find command")
+	}
+	page, ok := GroupHelp("page")
+	if !ok {
+		t.Fatal("page help missing")
+	}
+	for _, key := range []string{"find", "find_action"} {
+		if page.Commands[key] == "" {
+			t.Fatalf("page help missing %q: %#v", key, page.Commands)
+		}
+	}
+	if !contains(Prompt().Prompt, "aget page find") {
+		t.Fatal("prompt does not mention find")
+	}
+}
+
 func TestCleanModeDiscoverable(t *testing.T) {
 	// The --clean flag must be visible to LLM agents through the JSON help
 	// surfaces they actually read (root help, page group help, and prompt).

@@ -36,6 +36,7 @@ func newPageCommand() *cobra.Command {
 	cmd.AddCommand(
 		newPageReadCommand(),
 		newPageSnapshotCommand(),
+		newPageFindCommand(),
 		newPageClickCommand(),
 		newPageTypeCommand(),
 		newPageFillCommand(),
@@ -111,6 +112,131 @@ func resolveCleanMode(cmd *cobra.Command, sessionDefault, cleanFlag, noCleanFlag
 		return true
 	}
 	return sessionDefault
+}
+
+func newPageFindCommand() *cobra.Command {
+	var sid string
+	var role, name, text, placeholder, testid string
+	var nth int
+	var action string
+	var actionText string
+	var selectValue string
+	cmd := &cobra.Command{
+		Use:   "find",
+		Short: "Find an element by semantic locator (role/name/text/placeholder/testid) and optionally act on it",
+		Args:  noPositionalArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			criteria := cdp.FindCriteria{
+				Role:        role,
+				Name:        name,
+				Text:        text,
+				Placeholder: placeholder,
+				TestID:      testid,
+				Nth:         nth,
+			}
+			if criteria.IsEmpty() {
+				return writeInvalidArgs(cmd, "at least one locator flag required (--role, --name, --text, --placeholder, --testid, --nth)")
+			}
+			if err := validateFindAction(cmd, action, actionText, selectValue); err != nil {
+				return err
+			}
+			record, err := lookupSession(cmd, sid)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := pageOperationContext()
+			defer cancel()
+
+			svc, err := pageServiceForRecord(ctx, record, false)
+			if err != nil {
+				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
+			}
+
+			selector, err := svc.Find(ctx, criteria)
+			if err != nil {
+				return writeFindError(cmd, sid, err)
+			}
+
+			payload := map[string]any{"ok": true, "sid": sid, "selector": selector}
+			if action == "" {
+				return writeJSON(cmd, payload)
+			}
+
+			target := page.ActionTarget{SID: sid, Selector: selector}
+			var actErr error
+			switch action {
+			case "click":
+				actErr = svc.ClickTarget(ctx, target)
+			case "fill":
+				actErr = svc.Fill(ctx, page.FillOptions{Target: target, Text: actionText})
+				payload["text_len"] = len(actionText)
+			case "type":
+				actErr = svc.TypeTarget(ctx, target, actionText)
+				payload["text_len"] = len(actionText)
+			case "select":
+				actErr = svc.Select(ctx, target, selectValue)
+			case "check":
+				actErr = svc.Check(ctx, target)
+			case "uncheck":
+				actErr = svc.Uncheck(ctx, target)
+			case "hover":
+				actErr = svc.Hover(ctx, target)
+			case "focus":
+				actErr = svc.Focus(ctx, target)
+			default:
+				return writeInvalidArgs(cmd, "unknown action: "+action)
+			}
+			if actErr != nil {
+				return writePageActionError(cmd, sid, selector, "", actErr)
+			}
+			payload["action"] = action
+			return writeJSON(cmd, payload)
+		},
+	}
+	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().StringVar(&role, "role", "", "ARIA role (button, link, textbox, checkbox, ...)")
+	cmd.Flags().StringVar(&name, "name", "", "accessible name (aria-label, associated label, or text)")
+	cmd.Flags().StringVar(&text, "text", "", "visible text substring")
+	cmd.Flags().StringVar(&placeholder, "placeholder", "", "input placeholder substring")
+	cmd.Flags().StringVar(&testid, "testid", "", "data-testid value (exact)")
+	cmd.Flags().IntVar(&nth, "nth", 0, "1-based index to disambiguate multiple matches")
+	cmd.Flags().StringVar(&action, "action", "", "action to perform on the match: click, fill, type, select, check, uncheck, hover, focus")
+	cmd.Flags().StringVar(&actionText, "action-text", "", "text for fill/type actions")
+	cmd.Flags().StringVar(&selectValue, "value", "", "value for the select action")
+	configureAgentHelp(cmd)
+	return cmd
+}
+
+func validateFindAction(cmd *cobra.Command, action, actionText, selectValue string) error {
+	switch action {
+	case "", "click", "check", "uncheck", "hover", "focus":
+		return nil
+	case "fill", "type":
+		if actionText == "" {
+			return writeInvalidArgs(cmd, action+" action requires --action-text")
+		}
+		return nil
+	case "select":
+		if selectValue == "" {
+			return writeInvalidArgs(cmd, "select action requires --value")
+		}
+		return nil
+	default:
+		return writeInvalidArgs(cmd, "unknown action: "+action)
+	}
+}
+
+func writeFindError(cmd *cobra.Command, sid string, err error) error {
+	details := map[string]any{"sid": sid}
+	if errors.Is(err, cdp.ErrNoMatch) {
+		details["hint"] = "loosen the locator or run `aget page snapshot -s " + sid + "`"
+		return writeError(cmd, "locator_no_match", err.Error(), details)
+	}
+	if errors.Is(err, cdp.ErrAmbiguousMatch) {
+		details["hint"] = "add --nth N or a more specific locator"
+		return writeError(cmd, "locator_ambiguous", err.Error(), details)
+	}
+	return writeError(cmd, "page_find_failed", err.Error(), details)
 }
 
 func newPageClickCommand() *cobra.Command {

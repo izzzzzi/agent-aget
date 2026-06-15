@@ -133,6 +133,27 @@ aget page read -s SID --no-clean
 
 Очистка выключена по умолчанию и только удаляет не-основные строки (точные дубли и известные паттерны chrome) — основной контент не трогается. В ответе появляются `clean_enabled` и `clean_dropped` (сколько строк убрано). Приоритет: `--no-clean` > `--clean` > `AGET_CLEAN` > значение сессии.
 
+### Семантические локаторы (`find`)
+
+`find` находит элемент по ARIA-роли, имени, тексту, placeholder или testid — устойчивее CSS и понятнее агенту. Только чтение DOM, без мутации (stealth сохраняется). Можно сразу выполнить действие через `--action`.
+
+```bash
+# Найти и вернуть селектор
+aget page find -s SID --role button --name "Submit"
+aget page find -s SID --text "Подробнее"
+aget page find -s SID --testid submit-btn
+
+# Найти и сразу действовать (click/fill/type/select/check/uncheck/hover/focus)
+aget page find -s SID --role button --name "Submit" --action click
+aget page find -s SID --placeholder "Email" --action fill --action-text me@example.com
+aget page find -s SID --role combobox --name "City" --action select --value "Москва"
+
+# Несколько совпадений — уточнить через --nth (1-based)
+aget page find -s SID --role link --name "Details" --nth 2 --action click
+```
+
+Критерии комбинируются по AND. Если совпадений несколько и `--nth` не задан — ошибка `locator_ambiguous`; если ноль — `locator_no_match`.
+
 ### Ввод и взаимодействие
 
 ```bash

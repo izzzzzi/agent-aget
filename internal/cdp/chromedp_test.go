@@ -99,6 +99,54 @@ func TestSelectMatchesVisibleTextAndRejectsMissingOption(t *testing.T) {
 	}
 }
 
+func TestFindResolvesSemanticLocators(t *testing.T) {
+	if os.Getenv("AGET_RUN_CHROME_TESTS") != "1" {
+		t.Skip("set AGET_RUN_CHROME_TESTS=1 to run live Chrome find tests")
+	}
+
+	ctx, cancel := chromedp.NewContext(context.Background())
+	defer cancel()
+	html := `<button id="go">Submit</button>` +
+		`<label for="em">Email</label><input id="em" placeholder="you@example.com">` +
+		`<a href="/x">Details</a><a href="/y">Details</a>`
+	if err := chromedp.Run(ctx, chromedp.Navigate("data:text/html,"+strings.ReplaceAll(html, "#", "%23"))); err != nil {
+		t.Fatal(err)
+	}
+	driver := &ChromeDPDriver{ctx: ctx, run: chromedp.Run}
+
+	sel, err := driver.Find(context.Background(), FindCriteria{Role: "button", Name: "Submit"})
+	if err != nil {
+		t.Fatalf("find button: %v", err)
+	}
+	if sel != "#go" {
+		t.Fatalf("button selector = %q, want #go", sel)
+	}
+
+	if _, err := driver.Find(context.Background(), FindCriteria{Role: "textbox", Name: "Email"}); err != nil {
+		t.Fatalf("find email by label: %v", err)
+	}
+
+	// Two "Details" links: ambiguous without --nth.
+	if _, err := driver.Find(context.Background(), FindCriteria{Role: "link", Name: "Details"}); !errors.Is(err, ErrAmbiguousMatch) {
+		t.Fatalf("expected ErrAmbiguousMatch, got %v", err)
+	}
+	if _, err := driver.Find(context.Background(), FindCriteria{Role: "link", Name: "Details", Nth: 2}); err != nil {
+		t.Fatalf("find link nth=2: %v", err)
+	}
+
+	// No match.
+	if _, err := driver.Find(context.Background(), FindCriteria{Role: "button", Name: "Nope"}); !errors.Is(err, ErrNoMatch) {
+		t.Fatalf("expected ErrNoMatch, got %v", err)
+	}
+}
+
+func TestFindRejectsEmptyCriteria(t *testing.T) {
+	driver := &ChromeDPDriver{ctx: context.Background(), run: chromedp.Run}
+	if _, err := driver.Find(context.Background(), FindCriteria{}); err == nil {
+		t.Fatal("expected error for empty criteria")
+	}
+}
+
 func TestPressReturnsCanceledContextWithoutRunningAction(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

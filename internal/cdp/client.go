@@ -44,6 +44,7 @@ type GetOptions struct {
 type Driver interface {
 	Read(ctx context.Context) (PageState, error)
 	Snapshot(ctx context.Context) (SnapshotState, error)
+	Find(ctx context.Context, criteria FindCriteria) (string, error)
 	Click(ctx context.Context, selector string) error
 	Type(ctx context.Context, selector, text string) error
 	Fill(ctx context.Context, selector, text string) error
