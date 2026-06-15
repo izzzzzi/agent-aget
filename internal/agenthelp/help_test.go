@@ -77,6 +77,22 @@ func TestBatchAndDoctorGroupHelp(t *testing.T) {
 	}
 }
 
+func TestSnapshotDiffDiscoverable(t *testing.T) {
+	if RootHelp().Commands["page_snapshot_diff"] == "" {
+		t.Fatal("root help missing page_snapshot_diff command")
+	}
+	page, ok := GroupHelp("page")
+	if !ok {
+		t.Fatal("page help missing")
+	}
+	if page.Commands["snapshot_diff"] == "" {
+		t.Fatalf("page help missing snapshot_diff: %#v", page.Commands)
+	}
+	if !contains(Prompt().Prompt, "--diff") {
+		t.Fatal("prompt does not mention --diff")
+	}
+}
+
 func TestFindDiscoverable(t *testing.T) {
 	if RootHelp().Commands["page_find"] == "" {
 		t.Fatal("root help missing page_find command")

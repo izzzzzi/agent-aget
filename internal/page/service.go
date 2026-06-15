@@ -19,6 +19,7 @@ var (
 type RefResolver interface {
 	Save(record snapshot.Record) error
 	Resolve(sid, ref string) (snapshot.Element, error)
+	Load(sid string) (snapshot.Record, error)
 }
 
 type Service struct {
@@ -45,16 +46,18 @@ type ReadResult struct {
 }
 
 type SnapshotOptions struct {
-	SID string
+	SID  string
+	Diff bool
 }
 
 type SnapshotResult struct {
-	OK           bool          `json:"ok"`
-	SID          string        `json:"sid"`
-	URL          string        `json:"url"`
-	Title        string        `json:"title"`
-	Elements     []cdp.Element `json:"elements"`
-	NextCommands []string      `json:"next_commands"`
+	OK           bool                 `json:"ok"`
+	SID          string               `json:"sid"`
+	URL          string               `json:"url"`
+	Title        string               `json:"title"`
+	Elements     []cdp.Element        `json:"elements"`
+	Diff         *snapshot.DiffResult `json:"diff,omitempty"`
+	NextCommands []string             `json:"next_commands"`
 }
 
 type ActionTarget struct {
@@ -142,13 +145,23 @@ func (s *Service) Snapshot(ctx context.Context, options SnapshotOptions) (Snapsh
 	}
 
 	elements := assignRefs(state.Elements)
+	current := snapshotElements(elements)
+
+	var diff *snapshot.DiffResult
 	if s.resolver != nil {
+		if options.Diff {
+			// Load the prior snapshot before Save overwrites it.
+			if prev, err := s.resolver.Load(options.SID); err == nil {
+				d := snapshot.Diff(prev.Elements, current)
+				diff = &d
+			}
+		}
 		if err := s.resolver.Save(snapshot.Record{
 			SID:       options.SID,
 			URL:       state.URL,
 			Title:     state.Title,
 			CreatedAt: time.Now().UTC(),
-			Elements:  snapshotElements(elements),
+			Elements:  current,
 		}); err != nil {
 			return SnapshotResult{}, err
 		}
@@ -160,6 +173,7 @@ func (s *Service) Snapshot(ctx context.Context, options SnapshotOptions) (Snapsh
 		URL:          state.URL,
 		Title:        state.Title,
 		Elements:     elements,
+		Diff:         diff,
 		NextCommands: nextCommands(options.SID, elements),
 	}, nil
 }

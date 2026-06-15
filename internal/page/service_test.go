@@ -205,11 +205,20 @@ func TestClickAndTypeDelegateToDriver(t *testing.T) {
 type fakeResolver struct {
 	elements map[string]snapshot.Element
 	saved    snapshot.Record
+	prev     snapshot.Record
+	prevErr  error
 }
 
 func (f *fakeResolver) Save(record snapshot.Record) error {
 	f.saved = record
 	return nil
+}
+
+func (f *fakeResolver) Load(sid string) (snapshot.Record, error) {
+	if f.prevErr != nil {
+		return snapshot.Record{}, f.prevErr
+	}
+	return f.prev, nil
 }
 
 func (f *fakeResolver) Resolve(sid, ref string) (snapshot.Element, error) {
@@ -267,6 +276,58 @@ func TestSnapshotAssignsRefsAndNextCommands(t *testing.T) {
 	}
 	if resolver.saved.Elements[1].Selector != "input[name=email]" || resolver.saved.Elements[1].Ref != "@i1" {
 		t.Fatalf("saved input = %#v", resolver.saved.Elements[1])
+	}
+}
+
+func TestSnapshotDiffComputesDelta(t *testing.T) {
+	driver := &fakeDriver{
+		snapshot: cdp.SnapshotState{
+			URL:   "https://example.com",
+			Title: "Example",
+			Elements: []cdp.Element{
+				{Kind: "button", Name: "Submit", Selector: "#go", Visible: true, Enabled: true},
+				{Kind: "link", Text: "About", Selector: "a#about", Visible: true, Enabled: true},
+			},
+		},
+	}
+	resolver := &fakeResolver{
+		prev: snapshot.Record{
+			SID: "abc12345",
+			Elements: []snapshot.Element{
+				// same identity as button but disabled before -> Changed
+				{Kind: "button", Name: "Submit", Selector: "#go", Visible: true, Enabled: false},
+				// present before, gone now -> Removed
+				{Kind: "link", Text: "Home", Selector: "a#home", Visible: true, Enabled: true},
+			},
+		},
+	}
+	service := NewServiceWithRefs(driver, resolver)
+
+	// Without --diff: no diff field.
+	plain, err := service.Snapshot(context.Background(), SnapshotOptions{SID: "abc12345"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.Diff != nil {
+		t.Fatalf("diff should be nil without --diff, got %#v", plain.Diff)
+	}
+
+	// With --diff: added (About), removed (Home), changed (Submit enabled).
+	got, err := service.Snapshot(context.Background(), SnapshotOptions{SID: "abc12345", Diff: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Diff == nil {
+		t.Fatal("expected diff, got nil")
+	}
+	if len(got.Diff.Added) != 1 || got.Diff.Added[0].Text != "About" {
+		t.Fatalf("added = %#v", got.Diff.Added)
+	}
+	if len(got.Diff.Removed) != 1 || got.Diff.Removed[0].Text != "Home" {
+		t.Fatalf("removed = %#v", got.Diff.Removed)
+	}
+	if len(got.Diff.Changed) != 1 || got.Diff.Changed[0].After.Enabled != true {
+		t.Fatalf("changed = %#v", got.Diff.Changed)
 	}
 }
 

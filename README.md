@@ -108,6 +108,14 @@ aget page click -s SID --ref @e1
 aget page fill -s SID --ref @i1 --text TEXT
 ```
 
+После действия `--diff` показывает только что изменилось относительно предыдущего snapshot той же сессии (added/removed/changed) — экономит токены:
+
+```bash
+aget page snapshot -s SID            # базовый snapshot
+aget page click -s SID --ref @e1
+aget page snapshot -s SID --diff     # только дельта после клика
+```
+
 Прочитать текущую страницу:
 
 ```bash

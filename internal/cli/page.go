@@ -347,6 +347,7 @@ func newPageTypeCommand() *cobra.Command {
 
 func newPageSnapshotCommand() *cobra.Command {
 	var sid string
+	var diff bool
 	cmd := &cobra.Command{
 		Use:   "snapshot",
 		Short: "Capture an agent-friendly page snapshot",
@@ -363,7 +364,7 @@ func newPageSnapshotCommand() *cobra.Command {
 			if err != nil {
 				return writeError(cmd, "page_connect_failed", err.Error(), map[string]any{"sid": sid})
 			}
-			result, err := svc.Snapshot(ctx, page.SnapshotOptions{SID: sid})
+			result, err := svc.Snapshot(ctx, page.SnapshotOptions{SID: sid, Diff: diff})
 			if err != nil {
 				return writeError(cmd, "page_snapshot_failed", err.Error(), map[string]any{"sid": sid})
 			}
@@ -371,6 +372,7 @@ func newPageSnapshotCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&sid, "sid", "s", "", "session id")
+	cmd.Flags().BoolVar(&diff, "diff", false, "include the delta (added/removed/changed elements) versus the previous snapshot of this session")
 	configureAgentHelp(cmd)
 	return cmd
 }
