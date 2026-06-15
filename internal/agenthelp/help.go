@@ -73,6 +73,8 @@ func RootHelp() HelpPayload {
 			"page_dialog_dismiss": "aget page dialog-dismiss -s SID",
 			"page_screenshot":     "aget page screenshot -s SID --path /tmp/page.png",
 			"page_screenshot_ann": "aget page screenshot -s SID --path /tmp/page.png --annotate",
+			"inspect":             "aget inspect",
+			"inspect_port":        "aget inspect --port 9223",
 			"session_list":        "aget session list",
 			"session_close":       "aget session close -s SID",
 			"prompt":              "aget prompt",
@@ -236,6 +238,8 @@ func GroupHelp(name string) (HelpPayload, bool) {
 			Commands: map[string]string{
 				"prompt":             "aget prompt",
 				"agent_instructions": "aget agent-instructions",
+				"inspect":            "aget inspect",
+				"inspect_port":       "aget inspect --port 9223",
 			},
 		},
 	}

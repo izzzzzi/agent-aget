@@ -77,6 +77,20 @@ func TestBatchAndDoctorGroupHelp(t *testing.T) {
 	}
 }
 
+func TestInspectDiscoverable(t *testing.T) {
+	root := RootHelp()
+	if root.Commands["inspect"] == "" || root.Commands["inspect_port"] == "" {
+		t.Fatal("root help missing inspect or inspect_port")
+	}
+	prompt, ok := GroupHelp("prompt")
+	if !ok {
+		t.Fatal("prompt help missing")
+	}
+	if prompt.Commands["inspect"] == "" || prompt.Commands["inspect_port"] == "" {
+		t.Fatal("prompt help missing inspect commands")
+	}
+}
+
 func TestAnnotatedScreenshotDiscoverable(t *testing.T) {
 	r := RootHelp()
 	if r.Commands["page_screenshot_ann"] == "" {
