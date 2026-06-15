@@ -1184,6 +1184,10 @@ func writePageActionError(cmd *cobra.Command, sid, selector, ref string, err err
 		details["hint"] = "run `aget page snapshot -s " + sid + "` again"
 		return writeError(cmd, "ref_not_found", err.Error(), details)
 	}
+	if errors.Is(err, cdp.ErrElementOccluded) {
+		details["hint"] = "dismiss the overlay/banner first, or retry with --force to click via CDP coordinates"
+		return writeError(cmd, "element_occluded", err.Error(), details)
+	}
 	return writeError(cmd, "page_action_failed", err.Error(), details)
 }
 

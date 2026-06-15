@@ -283,8 +283,43 @@ func waitForReadableBody() chromedp.Action {
 	})
 }
 
+// ErrElementOccluded is returned when a click target is covered by another
+// element (banner, modal, overlay) at its center point.
+var ErrElementOccluded = errors.New("element is occluded by another element")
+
 func (d *ChromeDPDriver) Click(ctx context.Context, selector string) error {
+	if occluder, err := d.occludedBy(ctx, selector); err != nil {
+		return err
+	} else if occluder != "" {
+		return fmt.Errorf("%w: %s", ErrElementOccluded, occluder)
+	}
 	return d.runActions(ctx, chromedp.Click(selector, chromedp.ByQuery))
+}
+
+// occludedBy reports the description of the element covering the target's
+// center point, or "" if the target itself (or a descendant) is on top. A
+// missing element or one without layout returns "" so the normal click path
+// surfaces its own clearer error.
+func (d *ChromeDPDriver) occludedBy(ctx context.Context, selector string) (string, error) {
+	script := fmt.Sprintf(`(() => {
+	  const el = document.querySelector(%q);
+	  if (!el) return "";
+	  const r = el.getBoundingClientRect();
+	  if (r.width === 0 || r.height === 0) return "";
+	  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+	  if (cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) return "";
+	  const top = document.elementFromPoint(cx, cy);
+	  if (!top || top === el || el.contains(top) || top.contains(el)) return "";
+	  const id = top.id ? '#' + top.id : '';
+	  const cls = (typeof top.className === 'string' && top.className) ? '.' + top.className.trim().split(/\s+/).join('.') : '';
+	  const label = (top.getAttribute('aria-label') || (top.innerText || '').trim().slice(0, 40));
+	  return (top.tagName.toLowerCase() + id + cls + (label ? ' [' + label + ']' : '')).slice(0, 120);
+	})()`, selector)
+	var occluder string
+	if err := d.runActions(ctx, chromedp.Evaluate(script, &occluder)); err != nil {
+		return "", err
+	}
+	return occluder, nil
 }
 
 func (d *ChromeDPDriver) ClickForce(ctx context.Context, selector string) error {

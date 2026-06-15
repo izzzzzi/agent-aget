@@ -140,6 +140,35 @@ func TestFindResolvesSemanticLocators(t *testing.T) {
 	}
 }
 
+func TestClickDetectsOcclusion(t *testing.T) {
+	if os.Getenv("AGET_RUN_CHROME_TESTS") != "1" {
+		t.Skip("set AGET_RUN_CHROME_TESTS=1 to run live Chrome occlusion tests")
+	}
+
+	ctx, cancel := chromedp.NewContext(context.Background())
+	defer cancel()
+	// A button fully covered by a fixed overlay at the same center point.
+	html := `<button id="go" style="position:absolute;left:0;top:0;width:200px;height:80px">Go</button>` +
+		`<div id="cookie" style="position:absolute;left:0;top:0;width:200px;height:80px;background:red">Cookie banner</div>`
+	if err := chromedp.Run(ctx, chromedp.Navigate("data:text/html,"+strings.ReplaceAll(html, "#", "%23"))); err != nil {
+		t.Fatal(err)
+	}
+	driver := &ChromeDPDriver{ctx: ctx, run: chromedp.Run}
+
+	err := driver.Click(context.Background(), "#go")
+	if !errors.Is(err, ErrElementOccluded) {
+		t.Fatalf("expected ErrElementOccluded, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "cookie") {
+		t.Fatalf("occluder description should name the overlay, got %q", err.Error())
+	}
+
+	// Force click bypasses the occlusion check.
+	if err := driver.ClickForce(context.Background(), "#go"); err != nil {
+		t.Fatalf("force click should bypass occlusion: %v", err)
+	}
+}
+
 func TestFindRejectsEmptyCriteria(t *testing.T) {
 	driver := &ChromeDPDriver{ctx: context.Background(), run: chromedp.Run}
 	if _, err := driver.Find(context.Background(), FindCriteria{}); err == nil {
@@ -228,7 +257,9 @@ func TestRunActionsCancelsWhenCallContextIsCanceled(t *testing.T) {
 func TestRunActionsKeepsTargetContextAliveAfterSuccessfulRun(t *testing.T) {
 	driverCtx, cancelDriver := context.WithCancel(context.Background())
 	defer cancelDriver()
-	started := make(chan context.Context, 1)
+	// Click performs an occlusion pre-check and then the click, so the runner
+	// is invoked more than once; buffer accordingly.
+	started := make(chan context.Context, 4)
 	driver := &ChromeDPDriver{
 		ctx: driverCtx,
 		run: func(ctx context.Context, actions ...chromedp.Action) error {
