@@ -18,7 +18,8 @@
 - ✅ Волна 1 завершена: `find` семантические локаторы, click-occlusion detection, `snapshot --diff`.
 - ✅ Волна 2 #5: doctor security-проверки (permissions + unused key warning). #4 (шифрование) вырезан — cookies живут в Chromium profile, не в aget JSON.
 - ✅ Волна 4 #7: screenshot --annotate (numbered element markers).
-- ⏭️ Следующее: Волна 3 #6 (action policy) или Волна 4 #8 (streaming server).
+- ✅ Волна 3 #6: action policy (allow/deny/confirm через AGET_POLICY JSON).
+- ⏭️ Остаётся: Волна 4 #8 (streaming/inspect сервер) — не начинали.
 
 ## Roadmap
 
