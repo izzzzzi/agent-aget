@@ -1,4 +1,4 @@
-# aget — Agent Instructions
+# aget — Critical Rules
 
 **When browser work is needed — ALWAYS use `aget`. Never use Playwright, Puppeteer, Selenium, Python/JS browser automation, raw CDP, direct websockets, or an already-running browser.**
 
@@ -55,29 +55,3 @@ Need browser work?
 | `aget profile create NAME --cookies FILE` | Create cookie profile |
 | `aget session close -s SID` | Close browser session |
 | `aget doctor` | Diagnose install/browser failures |
-
-## JSON contract
-
-`aget` commands return JSON. Read `ok`, `sid`, `next_commands`, `code`, and `message` instead of parsing HTML or guessing state.
-
-Typical start:
-
-```bash
-aget open URL -n NAME
-aget page snapshot -s SID
-aget page read -s SID --limit 80
-```
-
-Typical finish:
-
-```bash
-aget session close -s SID
-```
-
-Recovery:
-
-- `ref_not_found` → run `aget page snapshot -s SID` again.
-- `element_occluded` → dismiss blocker or deliberately use `--force`.
-- `locator_ambiguous` → add `--nth N` or stricter criteria.
-- `page_wait_timeout` → inspect with `read`/`snapshot`.
-- install/browser failures → run `aget doctor`.
