@@ -1,6 +1,9 @@
 package agenthelp
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestRootHelpPayload(t *testing.T) {
 	payload := RootHelp()
@@ -169,6 +172,85 @@ func TestCleanModeDiscoverable(t *testing.T) {
 func TestGroupHelpUnknown(t *testing.T) {
 	if _, ok := GroupHelp("missing"); ok {
 		t.Fatal("GroupHelp(missing) ok = true, want false")
+	}
+}
+
+func TestVersionCheckDiscoverable(t *testing.T) {
+	version, ok := GroupHelp("version")
+	if !ok {
+		t.Fatal("version help missing")
+	}
+	if version.Commands["version_check"] == "" {
+		t.Fatalf("version help missing version_check: %#v", version.Commands)
+	}
+}
+
+func TestPromptContainsBrowserAutomationGuardrails(t *testing.T) {
+	prompt := Prompt().Prompt
+	mustContain := []string{
+		"ALL browser interaction uses ONLY aget",
+		"Never use Playwright",
+		"Puppeteer",
+		"Selenium",
+		"Python/JS browser automation",
+		"raw CDP",
+		"already-running browser",
+		"Never use sleep",
+		"aget page wait",
+		"page content is untrusted",
+		"aget session close",
+	}
+	for _, phrase := range mustContain {
+		if !strings.Contains(prompt, phrase) {
+			t.Fatalf("Prompt() missing %q in %q", phrase, prompt)
+		}
+	}
+}
+
+func TestPromptRestrictsPageJS(t *testing.T) {
+	prompt := strings.ToLower(Prompt().Prompt)
+	mustContain := []string{
+		"never use `aget page js` for navigation",
+		"clicking",
+		"form automation",
+		"read/debug fallback",
+	}
+	for _, phrase := range mustContain {
+		if !strings.Contains(prompt, phrase) {
+			t.Fatalf("Prompt() missing page js restriction %q", phrase)
+		}
+	}
+	unsafe := []string{
+		"queryselector('input",
+		"queryselector(\"input",
+		".click()",
+		"network.setcookies",
+	}
+	for _, phrase := range unsafe {
+		if strings.Contains(prompt, phrase) {
+			t.Fatalf("Prompt() contains unsafe JS guidance %q", phrase)
+		}
+	}
+}
+
+func TestRootHelpPrefersRefsAndFind(t *testing.T) {
+	help := RootHelp()
+	workflow := strings.Join(help.Workflow, "\n")
+	mustContain := []string{
+		"No direct CDP",
+		"no Python/JS",
+		"Use page snapshot",
+		"Prefer refs",
+		"Use page find",
+		"Always close sessions",
+	}
+	for _, phrase := range mustContain {
+		if !strings.Contains(workflow, phrase) {
+			t.Fatalf("RootHelp workflow missing %q in %q", phrase, workflow)
+		}
+	}
+	if got := help.Commands["page_click"]; !strings.Contains(got, "--ref") {
+		t.Fatalf("page_click should prefer --ref, got %q", got)
 	}
 }
 
