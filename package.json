@@ -25,6 +25,7 @@
     "check": "test -z \"$(gofmt -l .)\" && go vet ./... && go test ./... && npm run smoke && npm run test:browser-install && npm pack --dry-run",
     "smoke": "node scripts/smoke-test.js",
     "test:browser-install": "node scripts/browser-install.test.js",
+    "check:skills": "node scripts/check-skill-copies.js",
     "release:contract": "node scripts/release-contract-test.js",
     "pack:dry": "npm pack --dry-run"
   },
