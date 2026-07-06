@@ -51,11 +51,6 @@ function clearlyNegativeOrReadDebug(line) {
     || /read\/debug fallback|debug fallback|read-only|last-resort read\/debug/i.test(line);
 }
 
-function phrasesForFile(name, group, phrases) {
-  if (name === '.github/copilot-instructions.md' && group === 'wait-not-sleep') return ['wait'];
-  return phrases;
-}
-
 let failed = false;
 const files = [];
 
@@ -66,22 +61,20 @@ for (const rel of REQUIRED_FILES) {
     failed = true;
     continue;
   }
-  files.push([rel, readFile(rel), true]);
+  files.push([rel, readFile(rel)]);
 }
 
 for (const rel of OPTIONAL_FILES) {
   const abs = path.join(root, rel);
-  if (fs.existsSync(abs)) files.push([rel, readFile(rel), false]);
+  if (fs.existsSync(abs)) files.push([rel, readFile(rel)]);
 }
 
-for (const [name, content, checkGroups] of files) {
-  if (checkGroups) {
-    for (const [group, phrases] of GROUPS) {
-      for (const phrase of phrasesForFile(name, group, phrases)) {
-        if (!content.toLowerCase().includes(phrase.toLowerCase())) {
-          console.error(`${name} is missing ${group} invariant phrase: "${phrase}"`);
-          failed = true;
-        }
+for (const [name, content] of files) {
+  for (const [group, phrases] of GROUPS) {
+    for (const phrase of phrases) {
+      if (!content.toLowerCase().includes(phrase.toLowerCase())) {
+        console.error(`${name} is missing ${group} invariant phrase: "${phrase}"`);
+        failed = true;
       }
     }
   }
