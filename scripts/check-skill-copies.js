@@ -18,6 +18,8 @@ const REQUIRED_FILES = [
 const OPTIONAL_FILES = [
   '.opencode/command/aget-open.md',
   '.opencode/command/aget-snapshot.md',
+  '.opencode/plugins/aget.mjs',
+  'internal/agenthelp/help.go',
 ];
 
 const GROUPS = [

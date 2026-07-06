@@ -35,11 +35,7 @@ Use cookie files with `aget`; never inject cookies through raw browser protocols
 aget open https://example.com -n example --cookies cookies.txt
 ```
 
-Inline cookie strings are accepted when necessary, but avoid putting secrets in shell history or logs:
-
-```bash
-aget open https://example.com -n example --cookies "session=abc; token=xyz"
-```
+Inline cookie strings are accepted by the CLI when necessary, but prefer a cookie file because command arguments can appear in shell history, process listings, or logs. Do not paste real cookie values into examples, transcripts, or committed files.
 
 ## Profiles
 

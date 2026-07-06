@@ -24,7 +24,7 @@ func RootHelp() HelpPayload {
 	return HelpPayload{
 		OK: true, Tool: "aget", Audience: "llm_agent", Kind: "agent_help",
 		AgentPromptCommand: "aget prompt",
-		Docs:               []string{"AGENT_INSTRUCTIONS.md", "README.md"},
+		Docs:               []string{"AGENT_INSTRUCTIONS.md", "skills/aget/SKILL.md"},
 		Workflow: []string{
 			"CRITICAL: ALL browser interaction uses ONLY aget. No direct CDP, no Playwright/Puppeteer/Selenium, no Python/JS browser automation",
 			"CRITICAL: Never connect to an already-running browser. aget manages its own CloakBrowser",
@@ -46,7 +46,7 @@ func RootHelp() HelpPayload {
 			"open_device":         "aget open URL --device mobile",
 			"open_headful":        "aget open URL --headful -n NAME",
 			"open_profile":        "aget open URL --profile NAME",
-			"profile_create":      "aget profile create NAME --cookies COOKIES",
+			"profile_create":      "aget profile create NAME --cookies FILE",
 			"profile_save":        "aget profile save NAME -s SID",
 			"profile_list":        "aget profile list",
 			"profile_show":        "aget profile show NAME",
@@ -201,7 +201,7 @@ func GroupHelp(name string) (HelpPayload, bool) {
 				"Use profile delete to remove a profile and all its data",
 			},
 			Commands: map[string]string{
-				"create":    "aget profile create NAME --cookies COOKIES",
+				"create":    "aget profile create NAME --cookies FILE",
 				"list":      "aget profile list",
 				"show":      "aget profile show NAME",
 				"delete":    "aget profile delete NAME",
