@@ -1,6 +1,6 @@
 {
   "name": "agent-aget",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "CloakBrowser-backed browser workflow CLI for LLM agents",
   "license": "MIT",
   "repository": {
@@ -37,10 +37,22 @@
     "scripts/install.js",
     "scripts/platform.js",
     "scripts/browser-install.js",
+    "scripts/check-skill-copies.js",
     "browser-manifest.json",
     "README.md",
     "README.en.md",
     "AGENT_INSTRUCTIONS.md",
-    "LICENSE"
+    "AGENTS.md",
+    "SYSTEM_PROMPT_snippet.md",
+    "LICENSE",
+    "skills/aget/SKILL.md",
+    "skills/aget/references/",
+    ".claude-plugin/",
+    ".codex-plugin/",
+    ".cursor/rules/aget.mdc",
+    ".clinerules/aget.md",
+    ".opencode/",
+    "pi-extension/",
+    ".github/copilot-instructions.md"
   ]
 }

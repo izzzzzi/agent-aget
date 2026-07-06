@@ -1,0 +1,6 @@
+{
+  "name": "aget",
+  "version": "0.6.1",
+  "description": "Browser workflow for LLM agents — aget skill",
+  "main": "index.js"
+}
